@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "name": "beatix-frontend",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "regions": ["lhr1"],
+  "env": {
+    "NEXT_PUBLIC_API_URL": "@beatix_api_url",
+    "NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY": "@beatix_flutterwave_public_key"
+  }
+}
