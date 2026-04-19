@@ -1,0 +1,45 @@
+{
+  "name": "beatix-backend",
+  "version": "1.0.0",
+  "description": "Beatix ticketing platform — Node.js + PostgreSQL backend",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "db:migrate": "node -r ts-node/register src/db/migrate.ts",
+    "db:seed": "node -r ts-node/register src/db/seed.ts"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "dotenv": "^16.4.5",
+    "pg": "^8.12.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "qrcode": "^1.5.4",
+    "twilio": "^5.2.3",
+    "flutterwave-node-v3": "^1.1.15",
+    "uuid": "^10.0.0",
+    "express-rate-limit": "^7.3.1",
+    "express-validator": "^7.1.0",
+    "morgan": "^1.10.0",
+    "compression": "^1.7.4"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/pg": "^8.11.6",
+    "@types/qrcode": "^1.5.5",
+    "@types/uuid": "^10.0.0",
+    "@types/morgan": "^1.9.9",
+    "@types/compression": "^1.7.5",
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3",
+    "ts-node": "^10.9.2",
+    "nodemon": "^3.1.4"
+  }
+}
