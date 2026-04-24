@@ -17,6 +17,7 @@ import qrRoutes        from './routes/qr'
 import userRoutes      from './routes/users'
 import organizerRoutes from './routes/organizers'
 import adminRoutes     from './routes/admin'
+import feeRoutes       from './routes/fees'
 
 dotenv.config()
 
@@ -58,6 +59,7 @@ app.use('/api/qr',         qrRoutes)
 app.use('/api/users',      userRoutes)
 app.use('/api/organizers', organizerRoutes)
 app.use('/api/admin',      adminRoutes)
+app.use('/api/admin/fees', feeRoutes)
 
 // ── 404 ──────────────────────────────────────────────────────────────────────
 app.use((_req, res) => {

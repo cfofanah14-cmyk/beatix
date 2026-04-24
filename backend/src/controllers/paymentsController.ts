@@ -5,8 +5,7 @@ import { query, withTransaction } from '../db/client'
 import { AuthRequest } from '../middleware/auth'
 import { generateQrToken, generateQrImage, generateTicketNumber } from '../services/qrService'
 import { sendTicketConfirmation, sendPaymentFailed } from '../services/smsService'
-
-const SERVICE_FEE_RATE = Number(process.env.SERVICE_FEE_RATE || 0.05)
+import { calculateFee } from './feeController'
 
 // POST /api/payments/initiate
 export async function initiatePayment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
@@ -67,14 +66,15 @@ export async function initiatePayment(req: AuthRequest, res: Response, next: Nex
       }
     }
 
-    const serviceFee = (subtotal - discountAmount) * SERVICE_FEE_RATE
-    const totalAmount = subtotal - discountAmount + serviceFee
+    const serviceFee = (subtotal - discountAmount) * (await calculateFee(subtotal, (await query('SELECT organizer_id FROM events WHERE id=$1', [event_id])).rows[0].organizer_id)).feeRate
+    const feeBreakdown = await calculateFee(subtotal - discountAmount, (await query('SELECT organizer_id FROM events WHERE id=$1', [event_id])).rows[0].organizer_id)
+    const totalAmount = subtotal - discountAmount + feeBreakdown.buyerFeeShare
 
     // Create pending transaction
     const txRes = await query(`
-      INSERT INTO transactions (user_id, event_id, ticket_type_id, quantity, unit_price, subtotal, service_fee, discount_amount, total_amount, payment_method, buyer_phone, buyer_name, discount_code_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *
-    `, [req.user?.userId || null, event_id, ticket_type_id, quantity, unitPrice, subtotal, serviceFee, discountAmount, totalAmount, payment_method, buyer_phone, buyer_name || null, discountCodeId])
+      INSERT INTO transactions (user_id, event_id, ticket_type_id, quantity, unit_price, subtotal, service_fee, organizer_fee_share, buyer_fee_share, discount_amount, total_amount, payment_method, buyer_phone, buyer_name, discount_code_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *
+    `, [req.user?.userId || null, event_id, ticket_type_id, quantity, unitPrice, subtotal, feeBreakdown.serviceFee, feeBreakdown.organizerFeeShare, feeBreakdown.buyerFeeShare, discountAmount, totalAmount, payment_method, buyer_phone, buyer_name || null, discountCodeId])
 
     const transaction = txRes.rows[0]
 

@@ -260,3 +260,25 @@ CREATE TRIGGER set_updated_at_users        BEFORE UPDATE ON users        FOR EAC
 CREATE TRIGGER set_updated_at_organizers   BEFORE UPDATE ON organizers   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at_events       BEFORE UPDATE ON events       FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at_transactions BEFORE UPDATE ON transactions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- FEE SETTINGS (admin-controlled fee system)
+CREATE TABLE fee_settings (
+  id                          UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  total_fee_percentage        NUMERIC(5,2)  NOT NULL DEFAULT 5.00,
+  organizer_share_percentage  NUMERIC(5,2)  NOT NULL DEFAULT 70.00,
+  buyer_share_percentage      NUMERIC(5,2)  NOT NULL DEFAULT 30.00,
+  updated_by                  UUID          REFERENCES users(id),
+  updated_at                  TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+-- Seed default fee settings
+INSERT INTO fee_settings (total_fee_percentage, organizer_share_percentage, buyer_share_percentage)
+VALUES (5.00, 70.00, 30.00);
+
+-- Add fee_type to organizers (standard = global rate, partner = custom negotiated rate)
+ALTER TABLE organizers ADD COLUMN IF NOT EXISTS fee_type VARCHAR(20) NOT NULL DEFAULT 'standard';
+ALTER TABLE organizers ADD COLUMN IF NOT EXISTS custom_fee_percentage NUMERIC(5,2);
+
+-- Add fee breakdown columns to transactions
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS organizer_fee_share NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS buyer_fee_share NUMERIC(10,2) NOT NULL DEFAULT 0;
