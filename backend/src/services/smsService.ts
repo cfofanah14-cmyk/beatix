@@ -1,45 +1,84 @@
-import twilio from 'twilio'
-import dotenv from 'dotenv'
-dotenv.config()
+/**
+ * BEATIX — SMS Service (Twilio)
+ * ─────────────────────────────
+ * Uses Twilio TEST credentials in development.
+ * Test magic numbers:
+ *   Valid "sent":  +15005550006
+ *   Invalid:       +15005550001
+ * No real SMS is sent in test mode.
+ * To go live: set real TWILIO_ACCOUNT_SID / AUTH_TOKEN / PHONE_NUMBER in .env
+ */
 
-let client: twilio.Twilio | null = null
+import twilio from 'twilio'
+import { env } from '../config/env'
+
+let _client: twilio.Twilio | null = null
 
 function getClient(): twilio.Twilio {
-  if (!client) {
-    client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
+  if (!_client) {
+    if (!env.twilio.accountSid || !env.twilio.authToken) {
+      throw new Error('Twilio credentials not configured in .env')
+    }
+    _client = twilio(env.twilio.accountSid, env.twilio.authToken)
   }
-  return client
+  return _client
 }
 
 export async function sendSms(to: string, body: string): Promise<void> {
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[SMS DEV] To: ${to} | Message: ${body}`)
+  if (env.isDev) {
+    console.log(`\n📱 [SMS TEST] To: ${to}\n   Msg: ${body}\n`)
     return
   }
   try {
     await getClient().messages.create({
       body,
-      from: process.env.TWILIO_PHONE_NUMBER!,
+      from: env.twilio.phoneNumber,
       to,
     })
   } catch (err: any) {
-    console.error('SMS send failed:', err.message)
-    // Don't throw — SMS failure should not block the main flow
+    // Never throw — SMS failure must not break the purchase flow
+    console.error(`SMS failed to ${to}:`, err.message)
   }
 }
 
-export async function sendTicketConfirmation(phone: string, eventTitle: string, ticketNumber: string): Promise<void> {
-  await sendSms(phone, `BEATIX: Your ticket for "${eventTitle}" is confirmed! Ticket: ${ticketNumber}. Show QR code at the entrance.`)
+// ── Specific message templates ────────────────────────────────────────────────
+
+export async function sendOtpSms(phone: string, code: string, expiryMins: number): Promise<void> {
+  await sendSms(phone,
+    `Your Beatix code: ${code}. Valid ${expiryMins} mins. Do not share.`
+  )
+}
+
+export async function sendTicketConfirmation(
+  phone: string, eventTitle: string, ticketNumber: string, quantity: number
+): Promise<void> {
+  await sendSms(phone,
+    `BEATIX ✅ ${quantity}x "${eventTitle}" confirmed! Ref: ${ticketNumber}. Show QR at entrance. beatix.sl`
+  )
 }
 
 export async function sendPaymentFailed(phone: string, eventTitle: string): Promise<void> {
-  await sendSms(phone, `BEATIX: Payment failed for "${eventTitle}". No ticket was issued. Please try again at beatix.sl`)
+  await sendSms(phone,
+    `BEATIX: Payment for "${eventTitle}" failed. No ticket issued. Try again at beatix.sl`
+  )
 }
 
-export async function sendEventReminder(phone: string, eventTitle: string, startsAt: string): Promise<void> {
-  await sendSms(phone, `BEATIX Reminder: "${eventTitle}" starts ${startsAt}. Don't forget your QR ticket!`)
+export async function sendEventReminder(
+  phone: string, eventTitle: string, timeDesc: string
+): Promise<void> {
+  await sendSms(phone,
+    `BEATIX 🎉 Reminder: "${eventTitle}" is ${timeDesc}! Have your QR code ready. See you there!`
+  )
 }
 
 export async function sendEventCancellation(phone: string, eventTitle: string): Promise<void> {
-  await sendSms(phone, `BEATIX: "${eventTitle}" has been cancelled. You will receive a full refund within 3-5 business days.`)
+  await sendSms(phone,
+    `BEATIX: "${eventTitle}" has been cancelled. Full refund in 3-5 business days. Help: support@beatix.sl`
+  )
+}
+
+export async function sendPayoutNotification(phone: string, amount: number): Promise<void> {
+  await sendSms(phone,
+    `BEATIX 💰 Payout of NLe ${amount.toFixed(2)} is being processed to your account. beatix.sl`
+  )
 }
