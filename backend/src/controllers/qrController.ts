@@ -1,101 +1,143 @@
-import { Request, Response, NextFunction } from 'express'
-import { query } from '../db/client'
-import { AuthRequest } from '../middleware/auth'
-import { verifyQrToken } from '../services/qrService'
+import { Response, NextFunction } from 'express'
+import { query } from '../config/database'
+import { AuthRequest } from '../types'
+import { AppError } from '../middleware/error.middleware'
 
-// POST /api/qr/scan  — scan a QR code at the door (staff/admin only)
-export async function scanTicket(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+// POST /api/qr/scan
+export const scanTicket = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
-    const { token } = req.body
-    if (!token) { res.status(400).json({ success: false, message: 'QR token required' }); return }
+    const { qr_code } = req.body
 
-    // Decode and verify the QR token
-    const decoded = verifyQrToken(token)
-    if (!decoded) { res.status(400).json({ success: false, message: 'Invalid QR code' }); return }
-
-    // Look up the ticket in the database
-    const ticketRes = await query(`
-      SELECT t.*, e.title AS event_title, e.id AS event_id_check,
-             tt.name AS ticket_type_name,
-             e.starts_at, e.ends_at
-      FROM tickets t
-      JOIN events e ON e.id = t.event_id
-      JOIN ticket_types tt ON tt.id = t.ticket_type_id
-      WHERE t.qr_code_data = $1
-    `, [token])
-
-    if (ticketRes.rows.length === 0) {
-      res.status(404).json({ success: false, message: 'Ticket not found', scanResult: 'INVALID' }); return
+    if (!qr_code || typeof qr_code !== 'string') {
+      throw new AppError('qr_code is required', 400)
     }
 
-    const ticket = ticketRes.rows[0]
-
-    // Check if already scanned
-    if (ticket.status === 'used') {
-      res.status(400).json({
-        success: false,
-        message: 'Ticket already scanned',
-        scanResult: 'ALREADY_USED',
-        scannedAt: ticket.scanned_at,
-      }); return
-    }
-
-    // Check if ticket is cancelled/refunded
-    if (ticket.status !== 'active') {
-      res.status(400).json({
-        success: false,
-        message: `Ticket is ${ticket.status}`,
-        scanResult: 'INVALID',
-      }); return
-    }
-
-    // Verify the scanner has access to this event
-    const staffCheck = await query(`
-      SELECT s.id FROM staff s
-      JOIN organizers o ON o.id = s.organizer_id
-      JOIN events e ON e.organizer_id = o.id
-      WHERE s.user_id = $1 AND e.id = $2
-      UNION
-      SELECT id FROM users WHERE id = $1 AND role = 'admin'
-    `, [req.user!.userId, ticket.event_id])
-
-    if (staffCheck.rows.length === 0) {
-      res.status(403).json({ success: false, message: 'Not authorized to scan for this event' }); return
-    }
-
-    // Mark ticket as used — single use only
-    await query(
-      "UPDATE tickets SET status='used', scanned_at=NOW(), scanned_by=$1 WHERE id=$2",
-      [req.user!.userId, ticket.id]
+    // Fetch ticket with event + tier + buyer info
+    const result = await query(
+      `SELECT
+         t.id,
+         t.qr_code,
+         t.status,
+         t.checked_in_at,
+         u.first_name || ' ' || u.last_name AS buyer_name,
+         e.title                             AS event_name,
+         e.organizer_id,
+         tt.name                             AS ticket_type
+       FROM tickets t
+       JOIN users        u  ON t.user_id        = u.id
+       JOIN events       e  ON t.event_id        = e.id
+       JOIN ticket_tiers tt ON t.ticket_tier_id  = tt.id
+       WHERE t.qr_code = $1`,
+      [qr_code.trim()]
     )
 
-    res.json({
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        status: 'not_found',
+        message: 'Ticket not found. Check the code and try again.',
+      })
+      return
+    }
+
+    const ticket = result.rows[0]
+
+    // ── Access control — only organizer of this event or admin ──
+    const scannerRole = req.user!.role
+    const scannerId   = req.user!.userId
+
+    if (scannerRole !== 'admin') {
+      const orgCheck = await query(
+        'SELECT id FROM organizer_profiles WHERE user_id = $1 AND id = $2',
+        [scannerId, ticket.organizer_id]
+      )
+      if (orgCheck.rows.length === 0) {
+        throw new AppError('You are not authorised to scan tickets for this event', 403)
+      }
+    }
+
+    // ── Already used ─────────────────────────────────────────────
+    if (ticket.status === 'used') {
+      res.status(200).json({
+        success: false,
+        status: 'already_used',
+        message: 'This ticket has already been scanned.',
+        ticket: {
+          eventName:    ticket.event_name,
+          ticketType:   ticket.ticket_type,
+          buyerName:    ticket.buyer_name,
+          checkedInAt:  new Date(ticket.checked_in_at).toLocaleTimeString('en-GB', {
+            hour: '2-digit', minute: '2-digit',
+          }),
+        },
+      })
+      return
+    }
+
+    // ── Cancelled / refunded ─────────────────────────────────────
+    if (ticket.status !== 'valid') {
+      res.status(200).json({
+        success: false,
+        status: 'rejected',
+        message: `Ticket is ${ticket.status} and cannot be used for entry.`,
+        ticket: {
+          eventName:  ticket.event_name,
+          ticketType: ticket.ticket_type,
+          buyerName:  ticket.buyer_name,
+        },
+      })
+      return
+    }
+
+    // ── Mark as used ─────────────────────────────────────────────
+    await query(
+      `UPDATE tickets
+         SET status = 'used', checked_in_at = NOW()
+       WHERE qr_code = $1`,
+      [qr_code.trim()]
+    )
+
+    res.status(200).json({
       success: true,
-      scanResult: 'VALID',
-      data: {
-        ticketNumber: ticket.ticket_number,
-        eventTitle: ticket.event_title,
-        ticketType: ticket.ticket_type_name,
-        buyerName: ticket.buyer_name,
-        scannedAt: new Date().toISOString(),
+      status: 'success',
+      message: 'Entry approved!',
+      ticket: {
+        eventName:  ticket.event_name,
+        ticketType: ticket.ticket_type,
+        buyerName:  ticket.buyer_name,
       },
     })
-  } catch (err) { next(err) }
+  } catch (err) {
+    next(err)
+  }
 }
 
-// GET /api/qr/ticket/:ticketNumber  — look up ticket by number (for manual entry)
-export async function lookupByNumber(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+// GET /api/qr/stats/:eventId  — live check-in stats for an event
+export const getCheckInStats = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
-    const ticketRes = await query(`
-      SELECT t.id, t.ticket_number, t.status, t.buyer_name, t.buyer_phone, t.scanned_at,
-             e.title AS event_title, tt.name AS ticket_type_name
-      FROM tickets t
-      JOIN events e ON e.id = t.event_id
-      JOIN ticket_types tt ON tt.id = t.ticket_type_id
-      WHERE t.ticket_number = $1
-    `, [req.params.ticketNumber.toUpperCase()])
+    const { eventId } = req.params
 
-    if (ticketRes.rows.length === 0) { res.status(404).json({ success: false, message: 'Ticket not found' }); return }
-    res.json({ success: true, data: ticketRes.rows[0] })
-  } catch (err) { next(err) }
+    const stats = await query(
+      `SELECT
+         COUNT(*)                                        AS total_tickets,
+         COUNT(*) FILTER (WHERE status = 'used')        AS checked_in,
+         COUNT(*) FILTER (WHERE status = 'valid')       AS remaining,
+         COUNT(*) FILTER (WHERE status = 'cancelled')   AS cancelled
+       FROM tickets
+       WHERE event_id = $1`,
+      [eventId]
+    )
+
+    res.json({ success: true, data: stats.rows[0] })
+  } catch (err) {
+    next(err)
+  }
 }
