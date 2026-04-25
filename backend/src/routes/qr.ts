@@ -1,11 +1,23 @@
 import { Router } from 'express'
-import { body } from 'express-validator'
-import * as QrController from '../controllers/qrController'
-import { authenticate, requireRole } from '../middleware/auth'
+import { authenticate, requireRole } from '../middleware/auth.middleware'
+import { scanTicket, getCheckInStats } from '../controllers/qrController'
 
 const router = Router()
 
-router.post('/scan',            authenticate, requireRole('admin','staff','organizer'), [body('token').notEmpty()], QrController.scanTicket)
-router.get('/ticket/:ticketNumber', authenticate, requireRole('admin','staff','organizer'), QrController.lookupByNumber)
+// POST /api/qr/scan  — admin or organizer (staff) only
+router.post(
+  '/scan',
+  authenticate,
+  requireRole('admin', 'organizer'),
+  scanTicket
+)
+
+// GET /api/qr/stats/:eventId  — admin or organizer only
+router.get(
+  '/stats/:eventId',
+  authenticate,
+  requireRole('admin', 'organizer'),
+  getCheckInStats
+)
 
 export default router
