@@ -1,147 +1,156 @@
-import { Request, Response, NextFunction } from 'express'
-import { validationResult } from 'express-validator'
-import jwt from 'jsonwebtoken'
-import { query } from '../db/client'
-import { sendSms } from '../services/smsService'
-import { AuthRequest } from '../middleware/auth'
-import { JWTPayload } from '../types'
+import { Request, Response } from 'express';
+import { OAuth2Client } from 'google-auth-library';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { pool } from '../config/db';
 
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+interface JwtPayload {
+  id: number;
+  email: string;
+  role: string;
 }
 
-function signAccess(payload: JWTPayload): string {
-  return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any)
-}
+const generateToken = (user: { id: number; email: string; role: string }): string => {
+  return jwt.sign(
+    { id: user.id, email: user.email, role: user.role } as JwtPayload,
+    process.env.JWT_SECRET as string,
+    { expiresIn: '7d' }
+  );
+};
 
-function signRefresh(payload: JWTPayload): string {
-  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET!, { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d' } as any)
-}
-
-// POST /api/auth/send-otp
-export async function sendOtp(req: Request, res: Response, next: NextFunction): Promise<void> {
+// ─── Google Sign In ───────────────────────────────────────────────────────────
+export const googleSignIn = async (req: Request, res: Response): Promise<void> => {
   try {
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) { res.status(400).json({ success: false, errors: errors.array() }); return }
+    const { idToken } = req.body;
 
-    const { phone } = req.body
-    const code = generateOtp()
-    const expiresAt = new Date(Date.now() + Number(process.env.OTP_EXPIRY_MINUTES || 5) * 60000)
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
 
-    await query('UPDATE otp_codes SET used = true WHERE phone = $1 AND used = false', [phone])
-    await query('INSERT INTO otp_codes (phone, code, expires_at) VALUES ($1,$2,$3)', [phone, code, expiresAt])
-    await sendSms(phone, `Your Beatix verification code is: ${code}. Valid for ${process.env.OTP_EXPIRY_MINUTES || 5} minutes. Do not share.`)
+    const payload = ticket.getPayload();
+    if (!payload) {
+      res.status(401).json({ success: false, message: 'Invalid Google token' });
+      return;
+    }
 
-    const userRes = await query('SELECT id FROM users WHERE phone = $1', [phone])
+    const { sub: googleId, email, name, picture } = payload;
 
-    res.json({
-      success: true,
-      message: 'OTP sent',
-      isNewUser: userRes.rows.length === 0,
-      ...(process.env.NODE_ENV === 'development' && { devOtp: code }),
-    })
-  } catch (err) { next(err) }
-}
+    let result = await pool.query(
+      'SELECT * FROM users WHERE google_id = $1 OR email = $2',
+      [googleId, email]
+    );
+    let user = result.rows[0];
 
-// POST /api/auth/verify-otp
-export async function verifyOtp(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) { res.status(400).json({ success: false, errors: errors.array() }); return }
-
-    const { phone, code, name } = req.body
-
-    const otpRes = await query(
-      `SELECT id FROM otp_codes WHERE phone=$1 AND code=$2 AND used=false AND expires_at>NOW() ORDER BY created_at DESC LIMIT 1`,
-      [phone, code]
-    )
-    if (otpRes.rows.length === 0) { res.status(400).json({ success: false, message: 'Invalid or expired OTP' }); return }
-
-    await query('UPDATE otp_codes SET used=true WHERE id=$1', [otpRes.rows[0].id])
-
-    let userRes = await query('SELECT id, phone, name, role, is_active FROM users WHERE phone=$1', [phone])
-    let user: any
-
-    if (userRes.rows.length === 0) {
-      const created = await query(
-        'INSERT INTO users (phone, name, phone_verified) VALUES ($1,$2,true) RETURNING id, phone, name, role, is_active',
-        [phone, name || null]
-      )
-      user = created.rows[0]
+    if (!user) {
+      result = await pool.query(
+        `INSERT INTO users (name, email, google_id, avatar_url, role, created_at, last_active)
+         VALUES ($1, $2, $3, $4, 'user', NOW(), NOW()) RETURNING *`,
+        [name, email, googleId, picture]
+      );
+      user = result.rows[0];
     } else {
-      user = userRes.rows[0]
-      if (!user.is_active) { res.status(403).json({ success: false, message: 'Account suspended' }); return }
-      await query('UPDATE users SET phone_verified=true, last_login_at=NOW() WHERE id=$1', [user.id])
+      await pool.query(
+        `UPDATE users SET last_active = NOW(), google_id = COALESCE(google_id, $1), avatar_url = COALESCE(avatar_url, $2) WHERE id = $3`,
+        [googleId, picture, user.id]
+      );
     }
 
-    let organizerId: string | undefined
-    if (user.role === 'organizer') {
-      const orgRes = await query('SELECT id FROM organizers WHERE user_id=$1', [user.id])
-      if (orgRes.rows.length > 0) organizerId = orgRes.rows[0].id
-    }
-
-    const payload: JWTPayload = { userId: user.id, phone: user.phone, role: user.role, organizerId }
+    const token = generateToken(user);
     res.json({
       success: true,
-      data: {
-        accessToken: signAccess(payload),
-        refreshToken: signRefresh(payload),
-        user: { id: user.id, phone: user.phone, name: user.name, role: user.role, organizerId },
-      },
-    })
-  } catch (err) { next(err) }
-}
+      token,
+      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, avatar_url: user.avatar_url, role: user.role },
+    });
+  } catch (err) {
+    console.error('Google sign-in error:', err);
+    res.status(401).json({ success: false, message: 'Google authentication failed' });
+  }
+};
 
-// POST /api/auth/refresh
-export async function refreshToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+// ─── Phone/Password Register ──────────────────────────────────────────────────
+export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { refreshToken } = req.body
-    if (!refreshToken) { res.status(400).json({ success: false, message: 'Refresh token required' }); return }
-    const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as JWTPayload
-    res.json({ success: true, data: { accessToken: signAccess(payload) } })
-  } catch { res.status(401).json({ success: false, message: 'Invalid refresh token' }) }
-}
+    const { name, phone, password } = req.body;
+    if (!name || !phone || !password) {
+      res.status(400).json({ message: 'All fields required' });
+      return;
+    }
 
-// POST /api/auth/logout
-export async function logout(_req: AuthRequest, res: Response): Promise<void> {
-  res.json({ success: true, message: 'Logged out' })
-}
+    const existing = await pool.query('SELECT id FROM users WHERE phone = $1', [phone]);
+    if (existing.rows.length) {
+      res.status(409).json({ message: 'Phone number already registered' });
+      return;
+    }
 
-// GET /api/auth/me
-export async function getMe(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const result = await pool.query(
+      `INSERT INTO users (name, phone, password, role, created_at, last_active)
+       VALUES ($1, $2, $3, 'user', NOW(), NOW()) RETURNING *`,
+      [name, phone, hashedPassword]
+    );
+
+    const user = result.rows[0];
+    const token = generateToken(user);
+    res.status(201).json({
+      success: true,
+      token,
+      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
+    });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ─── Phone/Password Login ─────────────────────────────────────────────────────
+export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userRes = await query(
-      'SELECT id, phone, name, email, role, avatar_url, language, created_at FROM users WHERE id=$1',
-      [req.user!.userId]
-    )
-    if (userRes.rows.length === 0) { res.status(404).json({ success: false, message: 'User not found' }); return }
-    res.json({ success: true, data: userRes.rows[0] })
-  } catch (err) { next(err) }
-}
+    const { phone, password } = req.body;
+    if (!phone || !password) {
+      res.status(400).json({ message: 'Phone and password required' });
+      return;
+    }
 
-// POST /api/auth/organizer/send-2fa
-export async function sendOrganizer2FA(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
-  try {
-    if (!['organizer','admin'].includes(req.user!.role)) { res.status(403).json({ success: false, message: 'Not an organizer' }); return }
-    const code = generateOtp()
-    const expiresAt = new Date(Date.now() + 5 * 60000)
-    await query('UPDATE otp_codes SET used=true WHERE phone=$1 AND used=false', [req.user!.phone])
-    await query('INSERT INTO otp_codes (phone, code, purpose, expires_at) VALUES ($1,$2,$3,$4)', [req.user!.phone, code, '2fa', expiresAt])
-    await sendSms(req.user!.phone, `Beatix 2FA code: ${code}. Valid 5 minutes.`)
-    res.json({ success: true, message: '2FA code sent', ...(process.env.NODE_ENV === 'development' && { devOtp: code }) })
-  } catch (err) { next(err) }
-}
+    const result = await pool.query('SELECT * FROM users WHERE phone = $1', [phone]);
+    const user = result.rows[0];
 
-// POST /api/auth/organizer/verify-2fa
-export async function verifyOrganizer2FA(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    if (!user || !user.password) {
+      res.status(401).json({ message: 'Invalid credentials' });
+      return;
+    }
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      res.status(401).json({ message: 'Invalid credentials' });
+      return;
+    }
+
+    await pool.query('UPDATE users SET last_active = NOW() WHERE id = $1', [user.id]);
+
+    const token = generateToken(user);
+    res.json({
+      success: true,
+      token,
+      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ─── Get Current User ─────────────────────────────────────────────────────────
+export const getMe = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { code } = req.body
-    const otpRes = await query(
-      `SELECT id FROM otp_codes WHERE phone=$1 AND code=$2 AND purpose='2fa' AND used=false AND expires_at>NOW() ORDER BY created_at DESC LIMIT 1`,
-      [req.user!.phone, code]
-    )
-    if (otpRes.rows.length === 0) { res.status(400).json({ success: false, message: 'Invalid or expired 2FA code' }); return }
-    await query('UPDATE otp_codes SET used=true WHERE id=$1', [otpRes.rows[0].id])
-    res.json({ success: true, message: '2FA verified' })
-  } catch (err) { next(err) }
-}
+    const result = await pool.query(
+      'SELECT id, name, email, phone, avatar_url, role, created_at FROM users WHERE id = $1',
+      [(req as any).user.id]
+    );
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
