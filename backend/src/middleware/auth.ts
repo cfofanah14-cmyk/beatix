@@ -1,37 +1,60 @@
-import { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
-import { JWTPayload, UserRole } from '../types'
+import { Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { AuthRequest, JwtPayload } from '../types';
 
-export interface AuthRequest extends Request {
-  user?: JWTPayload
-}
-
-export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
-  const auth = req.headers.authorization
-  if (!auth?.startsWith('Bearer ')) {
-    res.status(401).json({ success: false, message: 'No token provided' })
-    return
-  }
+// ─── Verify JWT and attach user to request ────────────────────────────────────
+export const requireAuth = (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
-    req.user = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET!) as JWTPayload
-    next()
-  } catch {
-    res.status(401).json({ success: false, message: 'Invalid or expired token' })
-  }
-}
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'No token provided' });
+      return;
+    }
 
-export function requireRole(...roles: UserRole[]) {
-  return (req: AuthRequest, res: Response, next: NextFunction): void => {
-    if (!req.user) { res.status(401).json({ success: false, message: 'Not authenticated' }); return }
-    if (!roles.includes(req.user.role)) { res.status(403).json({ success: false, message: 'Insufficient permissions' }); return }
-    next()
-  }
-}
+    const token = authHeader.split(' ')[1];
+    const secret = process.env.JWT_SECRET;
+    if (!secret) throw new Error('JWT_SECRET is not configured');
 
-export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunction): void {
-  const auth = req.headers.authorization
-  if (auth?.startsWith('Bearer ')) {
-    try { req.user = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET!) as JWTPayload } catch {}
+    const decoded = jwt.verify(token, secret) as JwtPayload;
+
+    req.user = {
+      userId: decoded.userId,
+      email: decoded.email,
+      role: decoded.role,
+    };
+
+    next();
+  } catch (err) {
+    if (err instanceof jwt.TokenExpiredError) {
+      res.status(401).json({ error: 'Token expired' });
+      return;
+    }
+    if (err instanceof jwt.JsonWebTokenError) {
+      res.status(401).json({ error: 'Invalid token' });
+      return;
+    }
+    res.status(401).json({ error: 'Authentication failed' });
   }
-  next()
-}
+};
+
+// ─── Require admin role ───────────────────────────────────────────────────────
+export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  requireAuth(req, res, () => {
+    if (req.user?.role !== 'admin') {
+      res.status(403).json({ error: 'Admin access required' });
+      return;
+    }
+    next();
+  });
+};
+
+// ─── Require organizer or admin role ─────────────────────────────────────────
+export const requireOrganizer = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  requireAuth(req, res, () => {
+    if (req.user?.role !== 'organizer' && req.user?.role !== 'admin') {
+      res.status(403).json({ error: 'Organizer access required' });
+      return;
+    }
+    next();
+  });
+};
