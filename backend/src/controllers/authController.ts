@@ -6,41 +6,55 @@ import { pool } from '../config/db';
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-interface JwtPayload {
-  id: number;
-  email: string;
-  role: string;
-}
-
-const generateToken = (user: { id: number; email: string; role: string }): string => {
+const generateToken = (user: { id: number; email: string | null; role: string }): string => {
   return jwt.sign(
-    { id: user.id, email: user.email, role: user.role } as JwtPayload,
+    { id: user.id, email: user.email, role: user.role },
     process.env.JWT_SECRET as string,
     { expiresIn: '7d' }
   );
 };
 
-// ─── Google Sign In ───────────────────────────────────────────────────────────
 export const googleSignIn = async (req: Request, res: Response): Promise<void> => {
   try {
     const { idToken } = req.body;
 
-    const ticket = await googleClient.verifyIdToken({
-      idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
+    if (!idToken || typeof idToken !== 'string') {
+      res.status(400).json({ success: false, message: 'idToken is required in request body' });
+      return;
+    }
 
-    const payload = ticket.getPayload();
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      console.error('GOOGLE_CLIENT_ID env var is not set');
+      res.status(500).json({ success: false, message: 'Server Google config missing. Set GOOGLE_CLIENT_ID env var.' });
+      return;
+    }
+
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch (verifyErr) {
+      console.error('Google token verification failed:', verifyErr);
+      res.status(401).json({
+        success: false,
+        message: 'Google token verification failed. Ensure GOOGLE_CLIENT_ID matches your frontend client ID.',
+      });
+      return;
+    }
+
     if (!payload) {
-      res.status(401).json({ success: false, message: 'Invalid Google token' });
+      res.status(401).json({ success: false, message: 'Invalid Google token payload' });
       return;
     }
 
     const { sub: googleId, email, name, picture } = payload;
 
     let result = await pool.query(
-      'SELECT * FROM users WHERE google_id = $1 OR email = $2',
-      [googleId, email]
+      'SELECT * FROM users WHERE google_id = $1 OR (email = $2 AND email IS NOT NULL)',
+      [googleId, email ?? null]
     );
     let user = result.rows[0];
 
@@ -48,34 +62,45 @@ export const googleSignIn = async (req: Request, res: Response): Promise<void> =
       result = await pool.query(
         `INSERT INTO users (name, email, google_id, avatar_url, role, created_at, last_active)
          VALUES ($1, $2, $3, $4, 'user', NOW(), NOW()) RETURNING *`,
-        [name, email, googleId, picture]
+        [name ?? 'Beatix User', email ?? null, googleId, picture ?? null]
       );
       user = result.rows[0];
     } else {
       await pool.query(
-        `UPDATE users SET last_active = NOW(), google_id = COALESCE(google_id, $1), avatar_url = COALESCE(avatar_url, $2) WHERE id = $3`,
-        [googleId, picture, user.id]
+        `UPDATE users SET last_active = NOW(),
+         google_id = COALESCE(google_id, $1),
+         avatar_url = COALESCE(avatar_url, $2)
+         WHERE id = $3`,
+        [googleId, picture ?? null, user.id]
       );
+      const updated = await pool.query('SELECT * FROM users WHERE id = $1', [user.id]);
+      user = updated.rows[0];
     }
 
     const token = generateToken(user);
     res.json({
       success: true,
       token,
-      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, avatar_url: user.avatar_url, role: user.role },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        avatar_url: user.avatar_url,
+        role: user.role,
+      },
     });
   } catch (err) {
-    console.error('Google sign-in error:', err);
-    res.status(401).json({ success: false, message: 'Google authentication failed' });
+    console.error('Google sign-in unexpected error:', err);
+    res.status(500).json({ success: false, message: 'Internal server error during Google sign-in' });
   }
 };
 
-// ─── Phone/Password Register ──────────────────────────────────────────────────
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, phone, password } = req.body;
     if (!name || !phone || !password) {
-      res.status(400).json({ message: 'All fields required' });
+      res.status(400).json({ message: 'Name, phone, and password are required' });
       return;
     }
 
@@ -101,16 +126,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (err) {
     console.error('Register error:', err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error during registration' });
   }
 };
 
-// ─── Phone/Password Login ─────────────────────────────────────────────────────
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { phone, password } = req.body;
     if (!phone || !password) {
-      res.status(400).json({ message: 'Phone and password required' });
+      res.status(400).json({ message: 'Phone and password are required' });
       return;
     }
 
@@ -118,18 +142,17 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const user = result.rows[0];
 
     if (!user || !user.password) {
-      res.status(401).json({ message: 'Invalid credentials' });
+      res.status(401).json({ message: 'Invalid phone number or password' });
       return;
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
-      res.status(401).json({ message: 'Invalid credentials' });
+      res.status(401).json({ message: 'Invalid phone number or password' });
       return;
     }
 
     await pool.query('UPDATE users SET last_active = NOW() WHERE id = $1', [user.id]);
-
     const token = generateToken(user);
     res.json({
       success: true,
@@ -138,17 +161,20 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error during login' });
   }
 };
 
-// ─── Get Current User ─────────────────────────────────────────────────────────
 export const getMe = async (req: Request, res: Response): Promise<void> => {
   try {
     const result = await pool.query(
       'SELECT id, name, email, phone, avatar_url, role, created_at FROM users WHERE id = $1',
       [(req as any).user.id]
     );
+    if (!result.rows.length) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
     res.json({ success: true, user: result.rows[0] });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
