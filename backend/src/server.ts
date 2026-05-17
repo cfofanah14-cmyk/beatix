@@ -1,87 +1,65 @@
-import express from 'express'
-import cors from 'cors'
-import helmet from 'helmet'
-import compression from 'compression'
-import morgan from 'morgan'
-import dotenv from 'dotenv'
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import authRoutes from './routes/authRoutes';
 
-import { testConnection } from './db/client'
-import { errorHandler } from './middleware/errorHandler'
-import { rateLimiter } from './middleware/rateLimiter'
+dotenv.config();
 
-import authRoutes      from './routes/auth'
-import eventRoutes     from './routes/events'
-import ticketRoutes    from './routes/tickets'
-import paymentRoutes   from './routes/payments'
-import qrRoutes        from './routes/qr'
-import userRoutes      from './routes/users'
-import organizerRoutes from './routes/organizers'
-import adminRoutes     from './routes/admin'
-import feeRoutes       from './routes/fees'
+const app = express();
+const PORT = process.env.PORT || 5000;
 
-dotenv.config()
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+// Add every origin that calls this API. Include your Vercel URL here via env var.
+const allowedOrigins = [
+  'http://localhost:3000',
+  process.env.FRONTEND_URL,          // e.g. https://beatix.vercel.app
+  process.env.FRONTEND_URL_PREVIEW,  // optional second URL
+].filter(Boolean) as string[];
 
-const app = express()
-const PORT = process.env.PORT || 4000
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true); // allow curl/Postman/mobile
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      console.warn(`CORS blocked: ${origin}`);
+      callback(new Error(`Origin ${origin} not allowed by CORS policy`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+app.options('*', cors()); // handle preflight for all routes
 
-// ── Security & parsing ───────────────────────────────────────────────────────
-app.use(helmet())
-app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    /\.vercel\.app$/,
-  ],
-  credentials: true,
-  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization'],
-}))
-app.use(compression())
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ extended: true }))
+// ─── Body parsing ─────────────────────────────────────────────────────────────
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// ── Logging ──────────────────────────────────────────────────────────────────
-if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'))
-
-// ── Rate limiting ────────────────────────────────────────────────────────────
-app.use('/api/', rateLimiter)
-
-// ── Health check ─────────────────────────────────────────────────────────────
+// ─── Health check — visit this to confirm env vars are loaded ─────────────────
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'beatix-api', timestamp: new Date().toISOString() })
-})
+  res.json({
+    status: 'ok',
+    googleClientId: process.env.GOOGLE_CLIENT_ID
+      ? `${process.env.GOOGLE_CLIENT_ID.slice(0, 20)}... ✅`
+      : 'NOT SET ❌',
+    jwtSecret: process.env.JWT_SECRET ? 'set ✅' : 'NOT SET ❌',
+    allowedOrigins,
+  });
+});
 
-// ── Routes ───────────────────────────────────────────────────────────────────
-app.use('/api/auth',       authRoutes)
-app.use('/api/events',     eventRoutes)
-app.use('/api/tickets',    ticketRoutes)
-app.use('/api/payments',   paymentRoutes)
-app.use('/api/qr',         qrRoutes)
-app.use('/api/users',      userRoutes)
-app.use('/api/organizers', organizerRoutes)
-app.use('/api/admin',      adminRoutes)
-app.use('/api/admin/fees', feeRoutes)
+// ─── Routes ───────────────────────────────────────────────────────────────────
+app.use('/api/auth', authRoutes);
+// Add your other existing routes here:
+// app.use('/api/profile', profileRoutes);
+// app.use('/api/admin', adminRoutes);
+// app.use('/api/events', eventRoutes);
 
-// ── 404 ──────────────────────────────────────────────────────────────────────
-app.use((_req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found' })
-})
+// ─── Start ────────────────────────────────────────────────────────────────────
+app.listen(PORT, () => {
+  console.log(`✅ Beatix API on port ${PORT}`);
+  console.log(`GOOGLE_CLIENT_ID: ${process.env.GOOGLE_CLIENT_ID ? '✅' : '❌ MISSING'}`);
+  console.log(`JWT_SECRET: ${process.env.JWT_SECRET ? '✅' : '❌ MISSING'}`);
+  console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
+});
 
-// ── Error handler ─────────────────────────────────────────────────────────────
-app.use(errorHandler)
-
-// ── Start ─────────────────────────────────────────────────────────────────────
-async function start() {
-  try {
-    await testConnection()
-    console.log('✅ PostgreSQL connected')
-    app.listen(PORT, () => {
-      console.log(`🚀 Beatix API running on port ${PORT} [${process.env.NODE_ENV}]`)
-    })
-  } catch (err) {
-    console.error('❌ Failed to connect to database:', err)
-    process.exit(1)
-  }
-}
-
-start()
-export default app
+export default app;
