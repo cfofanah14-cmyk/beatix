@@ -1,24 +1,16 @@
-import { Router } from 'express';
-import {
-  initiateTicketPurchase,
-  verifyPaymentAndIssueTickets,
-  handleWebhook,
-  getTicket,
-  verifyTicketQR,
-} from '../controllers/ticketController';
+import { Router, RequestHandler } from 'express';
+import { purchaseTicket, confirmPayment, webhook, getTicket, scanTicket } from '../controllers/ticketController';
 import { requireAuth, requireOrganizer } from '../middleware/auth';
 
 const router = Router();
 
-// Webhook (no auth — Flutterwave calls this)
-router.post('/webhook', handleWebhook);
+const auth      = requireAuth      as RequestHandler;
+const organizer = requireOrganizer as RequestHandler;
 
-// Authenticated buyer flows
-router.post('/purchase', requireAuth as any, initiateTicketPurchase as any);
-router.post('/verify', requireAuth as any, verifyPaymentAndIssueTickets as any);
-router.get('/:id', requireAuth as any, getTicket as any);
-
-// Organizer ticket scanning
-router.post('/scan', requireOrganizer as any, verifyTicketQR as any);
+router.post('/webhook',  webhook          as RequestHandler);
+router.post('/purchase', auth, purchaseTicket as RequestHandler);
+router.post('/confirm',  auth, confirmPayment as RequestHandler);
+router.post('/scan',     organizer, scanTicket as RequestHandler);
+router.get('/:id',       auth, getTicket      as RequestHandler);
 
 export default router;

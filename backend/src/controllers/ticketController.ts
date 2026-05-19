@@ -1,272 +1,169 @@
 import { Request, Response } from 'express';
-import pool from '../db/client';
-import { AuthRequest } from '../types';
-import { generateQRCode } from '../services/qrService';
-import { calculateFees } from '../services/feeService';
-import { buildPaymentPayload, initiatePayment, verifyTransaction, verifyWebhookSignature } from '../services/flutterwaveService';
 import { v4 as uuidv4 } from 'uuid';
+import pool, { query } from '../db/client';
+import { AuthRequest, TicketRow, CategoryRow, EventRow, UserRow } from '../types/index';
+import { calculateFees } from '../services/feeService';
+import { generateQRCode } from '../services/qrService';
+import { initiatePayment, verifyTransaction, checkWebhookSignature } from '../services/flutterwaveService';
 
-// ─── Initiate ticket purchase ─────────────────────────────────────────────────
-export const initiateTicketPurchase = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { event_id, category_id, quantity = 1 } = req.body as {
-      event_id?: number;
-      category_id?: number;
-      quantity?: number;
-    };
-
-    if (!event_id || !category_id) {
-      res.status(400).json({ error: 'event_id and category_id are required' });
-      return;
-    }
-
-    // Check event exists and is published
-    const eventResult = await pool.query(
-      "SELECT * FROM events WHERE id=$1 AND status='published'",
-      [event_id]
-    );
-    if (!eventResult.rows[0]) {
-      res.status(404).json({ error: 'Event not found or not available' });
-      return;
-    }
-    const event = eventResult.rows[0];
-
-    // Check category and availability
-    const catResult = await pool.query(
-      'SELECT * FROM ticket_categories WHERE id=$1 AND event_id=$2',
-      [category_id, event_id]
-    );
-    if (!catResult.rows[0]) {
-      res.status(404).json({ error: 'Ticket category not found' });
-      return;
-    }
-    const category = catResult.rows[0];
-
-    const available = category.quantity - category.sold;
-    if (available < quantity) {
-      res.status(400).json({ error: `Only ${available} tickets remaining in this category` });
-      return;
-    }
-
-    // Get user details
-    const userResult = await pool.query('SELECT * FROM users WHERE id=$1', [req.user!.userId]);
-    const user = userResult.rows[0];
-
-    // Calculate fees
-    const fees = calculateFees(Number(category.price) * quantity, 'SLL');
-    const txRef = `BEATIX-${uuidv4().replace(/-/g, '').toUpperCase().slice(0, 16)}`;
-
-    const frontendUrl = process.env.FRONTEND_URL || 'https://beatix.vercel.app';
-
-    const payload = buildPaymentPayload({
-      amount: fees.total,
-      currency: 'SLL',
-      email: user.email,
-      fullName: user.full_name ?? user.email,
-      phone: user.phone ?? undefined,
-      txRef,
-      redirectUrl: `${frontendUrl}/payment/callback?tx_ref=${txRef}`,
-      eventTitle: event.title,
-    });
-
-    // Create a pending payment record
-    await pool.query(
-      `INSERT INTO payments (user_id, flutterwave_ref, amount, currency, status, created_at)
-       VALUES ($1,$2,$3,'SLL','pending',NOW())`,
-      [req.user!.userId, txRef, fees.total]
-    );
-
-    const flwResponse = await initiatePayment(payload);
-
-    res.json({
-      paymentLink: flwResponse.data?.link,
-      tx_ref: txRef,
-      fees,
-    });
-  } catch (err) {
-    console.error('[initiateTicketPurchase]', err);
-    res.status(500).json({ error: 'Failed to initiate payment' });
+// ─── Initiate purchase ────────────────────────────────────────────────────────
+export async function purchaseTicket(req: AuthRequest, res: Response): Promise<void> {
+  const { event_id, category_id, quantity = 1 } =
+    req.body as { event_id?: number; category_id?: number; quantity?: number };
+  if (!event_id || !category_id) {
+    res.status(400).json({ error: 'event_id and category_id are required' }); return;
   }
-};
-
-// ─── Verify payment and issue tickets ────────────────────────────────────────
-export const verifyPaymentAndIssueTickets = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { transaction_id, tx_ref, event_id, category_id, quantity = 1 } = req.body as {
-      transaction_id?: string;
-      tx_ref?: string;
-      event_id?: number;
-      category_id?: number;
-      quantity?: number;
-    };
+    const evR = await query<EventRow>("SELECT * FROM events WHERE id=$1 AND status='published'", [event_id]);
+    if (!evR.rows[0]) { res.status(404).json({ error: 'Event not available' }); return; }
 
-    if (!transaction_id) {
-      res.status(400).json({ error: 'transaction_id is required' });
-      return;
-    }
+    const catR = await query<CategoryRow>('SELECT * FROM ticket_categories WHERE id=$1 AND event_id=$2', [category_id, event_id]);
+    const cat = catR.rows[0];
+    if (!cat) { res.status(404).json({ error: 'Category not found' }); return; }
 
-    const verification = await verifyTransaction(transaction_id);
+    const available = cat.quantity - cat.sold;
+    if (available < quantity) { res.status(400).json({ error: `Only ${available} tickets left` }); return; }
 
-    if (verification.data.status !== 'successful') {
-      res.status(400).json({ error: 'Payment was not successful' });
-      return;
-    }
+    const userR = await query<UserRow>('SELECT * FROM users WHERE id=$1', [req.user!.userId]);
+    const user = userR.rows[0];
 
-    // Check for duplicate processing
-    const existing = await pool.query(
-      "SELECT id FROM tickets WHERE payment_ref=$1 LIMIT 1",
-      [transaction_id]
+    const fees = await calculateFees(parseFloat(cat.price) * quantity);
+    const txRef = `BX-${uuidv4().replace(/-/g, '').toUpperCase().slice(0, 14)}`;
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://beatix.vercel.app';
+
+    await query(
+      `INSERT INTO payments (user_id,flutterwave_ref,amount,currency,status,created_at)
+       VALUES ($1,$2,$3,$4,'pending',NOW())`,
+      [req.user!.userId, txRef, fees.total, fees.currency]
     );
-    if (existing.rows.length > 0) {
-      res.json({ message: 'Tickets already issued for this payment' });
-      return;
-    }
 
-    const catResult = await pool.query('SELECT * FROM ticket_categories WHERE id=$1', [category_id]);
-    const category = catResult.rows[0];
+    const flw = await initiatePayment({
+      tx_ref: txRef,
+      amount: fees.total,
+      currency: fees.currency,
+      redirect_url: `${frontendUrl}/payment/callback?tx_ref=${txRef}`,
+      payment_options: 'card,mobilemoney',
+      customer: { email: user.email, phonenumber: user.phone ?? undefined, name: user.full_name ?? undefined },
+      customizations: { title: 'Beatix', description: `Ticket for ${evR.rows[0].title}`, logo: `${frontendUrl}/logo.png` },
+      meta: { event_id, category_id, quantity, user_id: req.user!.userId },
+    });
 
-    if (!category) {
-      res.status(404).json({ error: 'Category not found' });
-      return;
+    res.json({ paymentLink: flw.link, tx_ref: txRef, fees });
+  } catch (err) {
+    console.error('[purchaseTicket]', err);
+    res.status(500).json({ error: 'Failed to initiate purchase' });
+  }
+}
+
+// ─── Verify payment + issue tickets ──────────────────────────────────────────
+export async function confirmPayment(req: AuthRequest, res: Response): Promise<void> {
+  const { transaction_id, tx_ref, event_id, category_id, quantity = 1 } =
+    req.body as { transaction_id?: string; tx_ref?: string; event_id?: number; category_id?: number; quantity?: number };
+  if (!transaction_id) { res.status(400).json({ error: 'transaction_id required' }); return; }
+
+  try {
+    const flw = await verifyTransaction(transaction_id);
+    if (flw.data.status !== 'successful') {
+      res.status(400).json({ error: 'Payment not successful' }); return;
     }
+    // Idempotency check
+    const dup = await query('SELECT id FROM tickets WHERE payment_ref=$1 LIMIT 1', [transaction_id]);
+    if (dup.rows.length) { res.json({ message: 'Tickets already issued' }); return; }
 
     const client = await pool.connect();
-    const issuedTickets = [];
-
+    const issued: TicketRow[] = [];
     try {
       await client.query('BEGIN');
-
-      for (let i = 0; i < (quantity ?? 1); i++) {
-        const qr = generateQRCode();
-        const ticketResult = await client.query(
-          `INSERT INTO tickets (user_id, event_id, category_id, qr_code, status, payment_ref, amount_paid, purchased_at)
+      for (let i = 0; i < quantity; i++) {
+        const t = await client.query<TicketRow>(
+          `INSERT INTO tickets (user_id,event_id,category_id,qr_code,status,payment_ref,amount_paid,purchased_at)
            VALUES ($1,$2,$3,$4,'active',$5,$6,NOW()) RETURNING *`,
-          [req.user!.userId, event_id, category_id, qr, transaction_id, verification.data.charged_amount / (quantity ?? 1)]
+          [req.user!.userId, event_id, category_id, generateQRCode(), transaction_id,
+           (flw.data.charged_amount / quantity).toFixed(2)]
         );
-        issuedTickets.push(ticketResult.rows[0]);
+        issued.push(t.rows[0]);
       }
-
-      await client.query(
-        'UPDATE ticket_categories SET sold = sold + $1 WHERE id = $2',
-        [quantity ?? 1, category_id]
-      );
-
+      await client.query('UPDATE ticket_categories SET sold=sold+$1 WHERE id=$2', [quantity, category_id]);
       await client.query(
         "UPDATE payments SET status='successful', ticket_id=$1 WHERE flutterwave_ref=$2",
-        [issuedTickets[0]?.id ?? null, tx_ref]
+        [issued[0]?.id ?? null, tx_ref]
       );
-
       await client.query('COMMIT');
     } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
+      await client.query('ROLLBACK'); throw e;
     } finally {
       client.release();
     }
-
-    res.json({ tickets: issuedTickets });
+    res.json({ tickets: issued });
   } catch (err) {
-    console.error('[verifyPaymentAndIssueTickets]', err);
-    res.status(500).json({ error: 'Failed to verify payment and issue tickets' });
+    console.error('[confirmPayment]', err);
+    res.status(500).json({ error: 'Failed to confirm payment' });
   }
-};
+}
 
 // ─── Flutterwave webhook ──────────────────────────────────────────────────────
-export const handleWebhook = async (req: Request, res: Response): Promise<void> => {
+export async function webhook(req: Request, res: Response): Promise<void> {
+  const sig = req.headers['verif-hash'] as string | undefined;
+  if (!checkWebhookSignature(sig)) { res.status(401).json({ error: 'Bad signature' }); return; }
   try {
-    const signature = req.headers['verif-hash'] as string | undefined;
-
-    if (!verifyWebhookSignature(signature)) {
-      res.status(401).json({ error: 'Invalid webhook signature' });
-      return;
-    }
-
-    const { data } = req.body as { data?: { status?: string; tx_ref?: string; id?: number } };
-
-    if (data?.status === 'successful' && data.tx_ref) {
-      await pool.query(
+    const body = req.body as { data?: { status?: string; tx_ref?: string } };
+    if (body.data?.status === 'successful' && body.data.tx_ref) {
+      await query(
         "UPDATE payments SET status='successful' WHERE flutterwave_ref=$1 AND status='pending'",
-        [data.tx_ref]
+        [body.data.tx_ref]
       );
     }
-
     res.json({ received: true });
   } catch (err) {
-    console.error('[handleWebhook]', err);
-    res.status(500).json({ error: 'Webhook processing failed' });
+    console.error('[webhook]', err);
+    res.status(500).json({ error: 'Webhook error' });
   }
-};
+}
 
-// ─── Get single ticket (for QR display) ──────────────────────────────────────
-export const getTicket = async (req: AuthRequest, res: Response): Promise<void> => {
+// ─── Get single ticket ────────────────────────────────────────────────────────
+export async function getTicket(req: AuthRequest, res: Response): Promise<void> {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
-
-    const result = await pool.query(
+    const r = await query<TicketRow & {
+      event_title: string; event_date: Date; event_location: string | null;
+      sales_end_date: Date | null; category_name: string;
+    }>(
       `SELECT t.*, e.title AS event_title, e.event_date, e.location AS event_location,
-              e.sales_end_date, tc.name AS category_name, tc.price
+              e.sales_end_date, tc.name AS category_name
        FROM tickets t
-       JOIN events e ON e.id = t.event_id
-       JOIN ticket_categories tc ON tc.id = t.category_id
+       JOIN events e ON e.id=t.event_id
+       JOIN ticket_categories tc ON tc.id=t.category_id
        WHERE t.id=$1 AND t.user_id=$2`,
       [id, req.user!.userId]
     );
-
-    if (!result.rows[0]) {
-      res.status(404).json({ error: 'Ticket not found' });
-      return;
-    }
-
-    res.json({ ticket: result.rows[0] });
+    if (!r.rows[0]) { res.status(404).json({ error: 'Ticket not found' }); return; }
+    res.json({ ticket: r.rows[0] });
   } catch (err) {
     console.error('[getTicket]', err);
     res.status(500).json({ error: 'Failed to fetch ticket' });
   }
-};
+}
 
-// ─── Verify ticket by QR code (organizer/admin) ───────────────────────────────
-export const verifyTicketQR = async (req: AuthRequest, res: Response): Promise<void> => {
+// ─── Scan / verify QR (organizer) ────────────────────────────────────────────
+export async function scanTicket(req: AuthRequest, res: Response): Promise<void> {
+  const { qr_code } = req.body as { qr_code?: string };
+  if (!qr_code) { res.status(400).json({ error: 'qr_code required' }); return; }
   try {
-    const { qr_code } = req.body as { qr_code?: string };
-
-    if (!qr_code) {
-      res.status(400).json({ error: 'qr_code is required' });
-      return;
-    }
-
-    const result = await pool.query(
+    const r = await query<TicketRow & { event_title: string; holder_name: string | null }>(
       `SELECT t.*, e.title AS event_title, u.full_name AS holder_name
-       FROM tickets t
-       JOIN events e ON e.id = t.event_id
-       JOIN users u ON u.id = t.user_id
+       FROM tickets t JOIN events e ON e.id=t.event_id JOIN users u ON u.id=t.user_id
        WHERE t.qr_code=$1`,
       [qr_code]
     );
-
-    if (!result.rows[0]) {
-      res.status(404).json({ valid: false, error: 'Ticket not found' });
-      return;
+    if (!r.rows[0]) { res.json({ valid: false, error: 'Ticket not found' }); return; }
+    const ticket = r.rows[0];
+    if (ticket.status !== 'active') {
+      res.json({ valid: false, ticket, error: `Ticket status: ${ticket.status}` }); return;
     }
-
-    const ticket = result.rows[0];
-
-    if (ticket.status === 'used') {
-      res.json({ valid: false, ticket, error: 'Ticket has already been used' });
-      return;
-    }
-
-    if (ticket.status === 'refunded') {
-      res.json({ valid: false, ticket, error: 'Ticket has been refunded' });
-      return;
-    }
-
-    // Mark as used
-    await pool.query("UPDATE tickets SET status='used' WHERE id=$1", [ticket.id]);
-    ticket.status = 'used';
-
-    res.json({ valid: true, ticket });
+    await query("UPDATE tickets SET status='used' WHERE id=$1", [ticket.id]);
+    res.json({ valid: true, ticket: { ...ticket, status: 'used' } });
   } catch (err) {
-    console.error('[verifyTicketQR]', err);
-    res.status(500).json({ error: 'Failed to verify ticket' });
+    console.error('[scanTicket]', err);
+    res.status(500).json({ error: 'Scan failed' });
   }
-};
+}

@@ -1,99 +1,37 @@
-import { FlutterwavePaymentPayload, FlutterwaveVerifyResponse } from '../types';
+import { FlwPaymentPayload, FlwVerifyResponse } from '../types/index';
 
-const FLW_BASE_URL = 'https://api.flutterwave.com/v3';
+const BASE = 'https://api.flutterwave.com/v3';
 
-function getSecretKey(): string {
-  const key = process.env.FLUTTERWAVE_SECRET_KEY;
-  if (!key) throw new Error('FLUTTERWAVE_SECRET_KEY is not set');
-  return key;
+function secretKey(): string {
+  const k = process.env.FLUTTERWAVE_SECRET_KEY;
+  if (!k) throw new Error('FLUTTERWAVE_SECRET_KEY not set');
+  return k;
 }
 
-// ─── Initiate a payment ───────────────────────────────────────────────────────
-export async function initiatePayment(payload: FlutterwavePaymentPayload): Promise<{
-  status: string;
-  message: string;
-  data: { link: string } | null;
-}> {
-  const response = await fetch(`${FLW_BASE_URL}/payments`, {
+export async function initiatePayment(
+  payload: FlwPaymentPayload
+): Promise<{ link: string | null; status: string; message: string }> {
+  const res = await fetch(`${BASE}/payments`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getSecretKey()}`,
-    },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secretKey()}` },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Flutterwave initiate failed: ${response.status} — ${error}`);
-  }
-
-  const json = (await response.json()) as {
-    status: string;
-    message: string;
-    data: { link: string } | null;
-  };
-
-  return json;
+  const json = (await res.json()) as { status: string; message: string; data?: { link: string } };
+  if (!res.ok) throw new Error(`Flutterwave error ${res.status}: ${json.message}`);
+  return { link: json.data?.link ?? null, status: json.status, message: json.message };
 }
 
-// ─── Verify a completed transaction by ID ────────────────────────────────────
-export async function verifyTransaction(transactionId: string | number): Promise<FlutterwaveVerifyResponse> {
-  const response = await fetch(`${FLW_BASE_URL}/transactions/${transactionId}/verify`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${getSecretKey()}`,
-    },
+export async function verifyTransaction(txId: string | number): Promise<FlwVerifyResponse> {
+  const res = await fetch(`${BASE}/transactions/${txId}/verify`, {
+    headers: { Authorization: `Bearer ${secretKey()}` },
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Flutterwave verify failed: ${response.status} — ${error}`);
-  }
-
-  const json = (await response.json()) as FlutterwaveVerifyResponse;
+  const json = (await res.json()) as FlwVerifyResponse;
+  if (!res.ok) throw new Error(`Flutterwave verify error ${res.status}: ${json.message}`);
   return json;
 }
 
-// ─── Verify webhook signature ────────────────────────────────────────────────
-export function verifyWebhookSignature(signature: string | undefined): boolean {
+export function checkWebhookSignature(signature: string | undefined): boolean {
   const secret = process.env.FLUTTERWAVE_WEBHOOK_SECRET;
-  if (!secret) {
-    console.warn('[flutterwaveService] FLUTTERWAVE_WEBHOOK_SECRET not set — skipping verification');
-    return true;
-  }
+  if (!secret) return true; // skip check if not configured
   return signature === secret;
-}
-
-// ─── Build a standard payment payload for Beatix ticket purchase ─────────────
-export function buildPaymentPayload(params: {
-  amount: number;
-  currency: string;
-  email: string;
-  fullName: string;
-  phone?: string;
-  txRef: string;
-  redirectUrl: string;
-  eventTitle: string;
-}): FlutterwavePaymentPayload {
-  return {
-    amount: params.amount,
-    currency: params.currency,
-    email: params.email,
-    phone_number: params.phone,
-    fullname: params.fullName,
-    tx_ref: params.txRef,
-    redirect_url: params.redirectUrl,
-    payment_options: 'card,mobilemoney',
-    customer: {
-      email: params.email,
-      phonenumber: params.phone,
-      name: params.fullName,
-    },
-    customizations: {
-      title: 'Beatix',
-      description: `Ticket for ${params.eventTitle}`,
-      logo: 'https://beatix.vercel.app/logo.png',
-    },
-  };
 }

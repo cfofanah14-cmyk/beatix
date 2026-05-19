@@ -1,15 +1,27 @@
 import { Request } from 'express';
 
-// ─── Authenticated request ────────────────────────────────────────────────────
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
 export interface AuthRequest extends Request {
-  user?: {
-    userId: number;
-    email: string;
-    role?: string;
-  };
+  user?: TokenUser;
 }
 
-// ─── Database row shapes ──────────────────────────────────────────────────────
+export interface TokenUser {
+  userId: number;
+  email: string;
+  role: string;
+}
+
+export interface JwtPayload {
+  userId: number;
+  email: string;
+  role: string;
+  iat?: number;
+  exp?: number;
+}
+
+// ─── DB row shapes ────────────────────────────────────────────────────────────
+
 export interface UserRow {
   id: number;
   full_name: string | null;
@@ -33,19 +45,18 @@ export interface EventRow {
   event_date: Date;
   sales_end_date: Date | null;
   banner_url: string | null;
-  status: 'draft' | 'published' | 'cancelled';
+  status: string;
   created_at: Date;
   updated_at: Date;
 }
 
-export interface TicketCategoryRow {
+export interface CategoryRow {
   id: number;
   event_id: number;
   name: string;
-  price: number;
+  price: string; // pg returns NUMERIC as string
   quantity: number;
   sold: number;
-  created_at: Date;
 }
 
 export interface TicketRow {
@@ -54,9 +65,9 @@ export interface TicketRow {
   event_id: number;
   category_id: number;
   qr_code: string;
-  status: 'active' | 'used' | 'refunded';
+  status: string;
   payment_ref: string | null;
-  amount_paid: number;
+  amount_paid: string; // pg NUMERIC -> string
   purchased_at: Date;
 }
 
@@ -65,55 +76,52 @@ export interface PaymentRow {
   user_id: number;
   ticket_id: number | null;
   flutterwave_ref: string | null;
-  amount: number;
+  amount: string;
   currency: string;
-  status: 'pending' | 'successful' | 'failed';
-  payment_method: string | null;
+  status: string;
   created_at: Date;
 }
 
-// ─── API response shapes ──────────────────────────────────────────────────────
+export interface FeeSettingRow {
+  id: number;
+  fee_percent: string;
+  min_fee: string;
+  currency: string;
+  updated_at: Date;
+}
+
+// ─── API shapes ───────────────────────────────────────────────────────────────
+
 export interface PublicUser {
   id: number;
-  email: string;
   full_name: string | null;
+  email: string;
   phone: string | null;
   avatar_url: string | null;
   role: string;
 }
 
-export interface JwtPayload {
-  userId: number;
-  email: string;
-  role?: string;
-  iat?: number;
-  exp?: number;
+export interface FeeBreakdown {
+  basePrice: number;
+  platformFee: number;
+  total: number;
+  currency: string;
 }
 
-// ─── Flutterwave types ────────────────────────────────────────────────────────
-export interface FlutterwavePaymentPayload {
+// ─── Flutterwave ──────────────────────────────────────────────────────────────
+
+export interface FlwPaymentPayload {
+  tx_ref: string;
   amount: number;
   currency: string;
-  email: string;
-  phone_number?: string;
-  fullname?: string;
-  tx_ref: string;
   redirect_url: string;
-  payment_options?: string;
+  payment_options: string;
+  customer: { email: string; phonenumber?: string; name?: string };
+  customizations: { title: string; description?: string; logo?: string };
   meta?: Record<string, unknown>;
-  customer: {
-    email: string;
-    phonenumber?: string;
-    name?: string;
-  };
-  customizations: {
-    title: string;
-    description?: string;
-    logo?: string;
-  };
 }
 
-export interface FlutterwaveVerifyResponse {
+export interface FlwVerifyResponse {
   status: string;
   message: string;
   data: {
@@ -121,23 +129,10 @@ export interface FlutterwaveVerifyResponse {
     tx_ref: string;
     flw_ref: string;
     amount: number;
-    currency: string;
     charged_amount: number;
+    currency: string;
     status: string;
     payment_type: string;
-    customer: {
-      id: number;
-      email: string;
-      phone_number: string;
-      name: string;
-    };
+    customer: { id: number; email: string; phone_number: string; name: string };
   };
-}
-
-// ─── Fee calculation ──────────────────────────────────────────────────────────
-export interface FeeBreakdown {
-  basePrice: number;
-  platformFee: number;
-  total: number;
-  currency: string;
 }

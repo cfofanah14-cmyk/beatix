@@ -1,13 +1,14 @@
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import { getProfile, updateProfile, changePassword, getMyTickets } from '../controllers/userController';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
-// All user routes require authentication
-router.get('/profile', requireAuth as any, getProfile as any);
-router.put('/profile', requireAuth as any, updateProfile as any);
-router.put('/change-password', requireAuth as any, changePassword as any);
-router.get('/tickets', requireAuth as any, getMyTickets as any);
+const auth = requireAuth as RequestHandler;
+
+router.get('/profile',         auth, getProfile       as RequestHandler);
+router.put('/profile',         auth, updateProfile    as RequestHandler);
+router.put('/change-password', auth, changePassword   as RequestHandler);
+router.get('/tickets',         auth, getMyTickets     as RequestHandler);
 
 export default router;

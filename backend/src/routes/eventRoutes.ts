@@ -1,24 +1,17 @@
-import { Router } from 'express';
-import {
-  listEvents,
-  getEvent,
-  createEvent,
-  updateEvent,
-  deleteEvent,
-  getMyEvents,
-} from '../controllers/eventController';
+import { Router, RequestHandler } from 'express';
+import { listEvents, getEvent, createEvent, updateEvent, deleteEvent, getMyEvents } from '../controllers/eventController';
 import { requireAuth, requireOrganizer } from '../middleware/auth';
 
 const router = Router();
 
-// Public
-router.get('/', listEvents);
-router.get('/:id', getEvent);
+const auth      = requireAuth    as RequestHandler;
+const organizer = requireOrganizer as RequestHandler;
 
-// Organizer/Admin
-router.post('/', requireOrganizer as any, createEvent as any);
-router.put('/:id', requireAuth as any, updateEvent as any);
-router.delete('/:id', requireAuth as any, deleteEvent as any);
-router.get('/organizer/mine', requireOrganizer as any, getMyEvents as any);
+router.get('/',               listEvents   as RequestHandler);
+router.get('/mine',           organizer, getMyEvents   as RequestHandler);
+router.get('/:id',            getEvent     as RequestHandler);
+router.post('/',              organizer, createEvent   as RequestHandler);
+router.put('/:id',            auth,      updateEvent   as RequestHandler);
+router.delete('/:id',         auth,      deleteEvent   as RequestHandler);
 
 export default router;

@@ -1,38 +1,43 @@
-import { FeeBreakdown } from '../types';
+import { query } from '../db/client';
+import { FeeBreakdown, FeeSettingRow } from '../types/index';
 
-// Beatix platform fee: 5% of ticket price, minimum SLL 5,000
-const PLATFORM_FEE_PERCENT = 0.05;
-const MINIMUM_FEE = 5000;
-
-/**
- * Calculate the full fee breakdown for a ticket purchase.
- * @param basePrice  The face-value price of the ticket in the given currency
- * @param currency   Currency code (default 'SLL')
- */
-export function calculateFees(basePrice: number, currency = 'SLL'): FeeBreakdown {
-  const rawFee = basePrice * PLATFORM_FEE_PERCENT;
-  const platformFee = Math.max(rawFee, MINIMUM_FEE);
-  const total = basePrice + platformFee;
-
+/** Pull current fee settings from DB, fall back to safe defaults. */
+async function getSettings(): Promise<{ feePercent: number; minFee: number; currency: string }> {
+  const result = await query<FeeSettingRow>('SELECT * FROM fee_settings ORDER BY id ASC LIMIT 1');
+  const row = result.rows[0];
   return {
-    basePrice,
-    platformFee: Math.round(platformFee),
-    total: Math.round(total),
-    currency,
+    feePercent: row ? parseFloat(row.fee_percent) : 5,
+    minFee: row ? parseFloat(row.min_fee) : 5000,
+    currency: row?.currency ?? 'SLL',
   };
 }
 
-/**
- * Return only the total amount the buyer will be charged.
- */
-export function getTotalCharge(basePrice: number, currency = 'SLL'): number {
-  return calculateFees(basePrice, currency).total;
+/** Calculate fees for a given base price. */
+export async function calculateFees(basePrice: number, currency?: string): Promise<FeeBreakdown> {
+  const settings = await getSettings();
+  const raw = basePrice * (settings.feePercent / 100);
+  const platformFee = Math.max(raw, settings.minFee);
+  return {
+    basePrice,
+    platformFee: Math.round(platformFee),
+    total: Math.round(basePrice + platformFee),
+    currency: currency ?? settings.currency,
+  };
 }
 
-/**
- * Calculate organizer payout (after platform fee deduction).
- */
-export function getOrganizerPayout(basePrice: number, currency = 'SLL'): number {
-  const { platformFee } = calculateFees(basePrice, currency);
-  return Math.round(basePrice - platformFee);
+/** Synchronous version with explicit fee params — for when you already have settings. */
+export function calculateFeesSync(
+  basePrice: number,
+  feePercent: number,
+  minFee: number,
+  currency = 'SLL'
+): FeeBreakdown {
+  const raw = basePrice * (feePercent / 100);
+  const platformFee = Math.max(raw, minFee);
+  return {
+    basePrice,
+    platformFee: Math.round(platformFee),
+    total: Math.round(basePrice + platformFee),
+    currency,
+  };
 }

@@ -1,20 +1,21 @@
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import {
-  getDashboardStats,
-  listUsers,
-  updateUserRole,
-  listAllEvents,
-  adminDeleteEvent,
+  getStats, getUserActivity, listUsers, setUserRole,
+  listAllEvents, deleteAnyEvent, getFeeSettings, updateFeeSettings,
 } from '../controllers/adminController';
 import { requireAdmin } from '../middleware/auth';
 
 const router = Router();
 
-// All admin routes require admin role
-router.get('/stats', requireAdmin as any, getDashboardStats as any);
-router.get('/users', requireAdmin as any, listUsers as any);
-router.put('/users/:id/role', requireAdmin as any, updateUserRole as any);
-router.get('/events', requireAdmin as any, listAllEvents as any);
-router.delete('/events/:id', requireAdmin as any, adminDeleteEvent as any);
+const admin = requireAdmin as RequestHandler;
+
+router.get('/stats',          admin, getStats         as RequestHandler);
+router.get('/activity',       admin, getUserActivity  as RequestHandler);
+router.get('/users',          admin, listUsers        as RequestHandler);
+router.put('/users/:id/role', admin, setUserRole      as RequestHandler);
+router.get('/events',         admin, listAllEvents    as RequestHandler);
+router.delete('/events/:id',  admin, deleteAnyEvent   as RequestHandler);
+router.get('/fees',           admin, getFeeSettings   as RequestHandler);
+router.put('/fees',           admin, updateFeeSettings as RequestHandler);
 
 export default router;

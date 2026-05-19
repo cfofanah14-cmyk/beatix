@@ -1,13 +1,12 @@
-import { Router } from 'express';
-import { googleSignIn, registerWithPhone, loginWithPhone, getMe } from '../controllers/authController';
+import { Router, RequestHandler } from 'express';
+import { googleSignIn, register, login, getMe } from '../controllers/authController';
 import { requireAuth } from '../middleware/auth';
-import { authLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
-router.post('/google', authLimiter, googleSignIn);
-router.post('/register', authLimiter, registerWithPhone);
-router.post('/login', authLimiter, loginWithPhone);
-router.get('/me', requireAuth as any, getMe as any);
+router.post('/google',   googleSignIn as RequestHandler);
+router.post('/register', register     as RequestHandler);
+router.post('/login',    login        as RequestHandler);
+router.get('/me',        requireAuth  as RequestHandler, getMe as RequestHandler);
 
 export default router;
