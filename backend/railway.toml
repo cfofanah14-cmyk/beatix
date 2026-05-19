@@ -1,12 +1,9 @@
+# Beatix backend v2
 [build]
-builder = "NIXPACKS"
+builder = "nixpacks"
 buildCommand = "npm install && npm run build"
 
 [deploy]
 startCommand = "npm start"
-restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 10
-
-[healthcheck]
-path = "/health"
-timeout = 30
+healthcheckPath = "/health"
+healthcheckTimeout = 30
