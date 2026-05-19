@@ -4,6 +4,6 @@ builder = "nixpacks"
 buildCommand = "npm install && npm run build"
 
 [deploy]
-startCommand = "node -e \"const{Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false}});const fs=require('fs');p.query(fs.readFileSync('src/db/schema.sql','utf8')).finally(()=>p.end())\" && npm start"
+startCommand = "npm start"
 healthcheckPath = "/health"
 healthcheckTimeout = 60
