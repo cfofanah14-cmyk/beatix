@@ -1,0 +1,55 @@
+{
+  "name": "Beatix — Events in Sierra Leone",
+  "short_name": "Beatix",
+  "description": "Discover and book tickets for the best events in Sierra Leone. Pay with mobile money, get your QR ticket instantly.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0D0B2B",
+  "background_color": "#0D0B2B",
+  "lang": "en",
+  "categories": ["entertainment", "lifestyle", "social"],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Explore Events",
+      "short_name": "Explore",
+      "url": "/explore",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "My Tickets",
+      "short_name": "Tickets",
+      "url": "/my-tickets",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

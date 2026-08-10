@@ -1,47 +1,33 @@
-import type { Metadata, Viewport } from 'next'
-import { Syne, DM_Sans } from 'next/font/google'
-import '../styles/globals.css'
+// This is a SERVER component - do NOT add 'use client' here.
+// All client-side providers are wrapped in their own 'use client' components below.
 
-const syne = Syne({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
-  variable: '--font-syne',
-  display: 'swap',
-})
-
-const dmSans = DM_Sans({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
-  variable: '--font-dm-sans',
-  display: 'swap',
-})
+import type { Metadata } from 'next';
+import GoogleAuthWrapper from './components/auth/GoogleAuthWrapper';
+import { AuthProvider } from './lib/AuthContext';
 
 export const metadata: Metadata = {
   title: 'Beatix — Access Every Event, Effortlessly',
-  description: 'Buy tickets to events in Sierra Leone instantly. Mobile money payments, QR code delivery.',
-  keywords: ['events', 'tickets', 'Sierra Leone', 'Freetown', 'Afrimoney', 'Orange Money'],
-  openGraph: {
-    title: 'Beatix — Access Every Event, Effortlessly',
-    description: 'Buy tickets to events in Sierra Leone instantly.',
-    type: 'website',
-  },
-  icons: { icon: '/favicon.ico' },
-}
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: '#0D0B2B',
-}
+  description: 'Online event ticketing for Sierra Leone and West Africa',
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${syne.variable} ${dmSans.variable}`}>
-      <body className={dmSans.className}>
-        {children}
+    <html lang="en">
+      <body>
+        {/*
+          GoogleAuthWrapper is a 'use client' component that wraps GoogleOAuthProvider.
+          AuthProvider is also a 'use client' component.
+          Both must NOT be used directly in a server component — wrapping them like
+          this is the correct Next.js App Router pattern.
+        */}
+        
+          <GoogleAuthWrapper><AuthProvider>
+            {children}
+          </AuthProvider></GoogleAuthWrapper>
+        
       </body>
     </html>
-  )
+  );
 }
+
+
