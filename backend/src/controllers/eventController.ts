@@ -17,7 +17,7 @@ export async function listEvents(req: Request, res: Response): Promise<void> {
     const r = await query<EventRow & { organizer_name: string | null }>(
       `SELECT e.*, u.full_name AS organizer_name
        FROM events e LEFT JOIN users u ON u.id=e.organizer_id
-       ${where} ORDER BY e.event_date ASC
+       ${where} ORDER BY e.starts_at ASC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );
@@ -63,7 +63,7 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<void
   try {
     await client.query('BEGIN');
     const ev = await client.query<EventRow>(
-      `INSERT INTO events (organizer_id,title,description,location,event_date,sales_end_date,
+      `INSERT INTO events (organizer_id,title,description,location,starts_at,sales_end_date,
         banner_url,status,created_at,updated_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,'published',NOW(),NOW()) RETURNING *`,
       [req.user!.userId, title, description ?? null, location ?? null,
@@ -103,7 +103,7 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<void
     const r = await query<EventRow>(
       `UPDATE events SET
          title=COALESCE($1,title), description=COALESCE($2,description),
-         location=COALESCE($3,location), event_date=COALESCE($4,event_date),
+         location=COALESCE($3,location), starts_at=COALESCE($4,event_date),
          sales_end_date=COALESCE($5,sales_end_date), banner_url=COALESCE($6,banner_url),
          status=COALESCE($7,status), updated_at=NOW()
        WHERE id=$8 RETURNING *`,

@@ -14,6 +14,7 @@ const SAMPLE_EVENTS = [
 
 export default function HomePage() {
   const [activeCategory, setActiveCategory] = useState('All')
+  const [greeting] = useState(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; })
 
   return (
     <div style={{ background: '#0D0B2B', minHeight: '100vh', maxWidth: 430, margin: '0 auto', paddingBottom: 80, fontFamily: "'DM Sans', sans-serif", color: '#fff' }}>
@@ -21,8 +22,8 @@ export default function HomePage() {
       {/* Top Bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 12px', position: 'sticky', top: 0, background: '#0D0B2B', zIndex: 10 }}>
         <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, color: '#F5C842' }}>
-          BEA<span style={{ color: '#A855D4' }}>TIX</span>
-        </div>
+  BEA<span style={{ color: '#A855D4' }}>TIX</span>
+</div>
         <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#1A1845', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
           <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -33,7 +34,7 @@ export default function HomePage() {
 
       {/* Greeting */}
       <div style={{ padding: '4px 20px 16px' }}>
-        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 3 }}>Good evening 👋</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 3 }}>{greeting} 👋</div>
         <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800 }}>
           Find <span style={{ color: '#F5C842' }}>Events</span> Near You
         </div>
