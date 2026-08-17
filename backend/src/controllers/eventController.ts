@@ -103,7 +103,7 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<void
     const r = await query<EventRow>(
       `UPDATE events SET
          title=COALESCE($1,title), description=COALESCE($2,description),
-         location=COALESCE($3,location), starts_at=COALESCE($4,event_date),
+         location=COALESCE($3,location), starts_at=COALESCE($4,starts_at),
          sales_end_date=COALESCE($5,sales_end_date), banner_url=COALESCE($6,banner_url),
          status=COALESCE($7,status), updated_at=NOW()
        WHERE id=$8 RETURNING *`,

@@ -28,7 +28,7 @@ export default function OnboardingPage() {
     }
   }, [user, loading, router]);
 
-  // ─── Google Sign In ─────────────────────────────────────────────────────────
+  // — Google Sign In ——————————————————————————
   const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     setError('');
     setSubmitting(true);
@@ -99,7 +99,7 @@ export default function OnboardingPage() {
     );
   };
 
-  // ─── Phone/Password Auth ────────────────────────────────────────────────────
+  // — Phone/Password Auth ——————————————————————————
   const handlePhoneAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -149,6 +149,48 @@ export default function OnboardingPage() {
         <div className="crown">👑</div>
         <h1 className="brand">BEATIX</h1>
         <p className="tagline">Access Every Event, Effortlessly</p>
+      </div>
+
+      <div className="follow-us">
+        <p className="follow-label">Follow us for event updates</p>
+        <div className="follow-links">
+          <a
+            href="https://www.facebook.com/share/1CSfzPy4Es/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="follow-btn facebook"
+            aria-label="Follow Beatix on Facebook"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M22 12.06C22 6.53 17.52 2.04 12 2.04S2 6.53 2 12.06c0 5 3.66 9.14 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7c4.78-.76 8.44-4.9 8.44-9.9z" />
+            </svg>
+            Facebook
+          </a>
+          <a
+            href="https://www.instagram.com/beatix1_"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="follow-btn instagram"
+            aria-label="Follow Beatix on Instagram"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.65-.07-4.85s.02-3.58.07-4.85c.15-3.23 1.67-4.77 4.92-4.92 1.27-.06 1.65-.07 4.85-.07zm0-2.16C8.74 0 8.33.01 7.05.07 2.7.27.27 2.69.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98 1.28.06 1.69.07 4.95.07s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95C23.72 2.7 21.3.27 16.95.07 15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 1 0 0 12.32 6.16 6.16 0 0 0 0-12.32zm0 10.16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.4-10.4a1.44 1.44 0 1 1-2.88 0 1.44 1.44 0 0 1 2.88 0z" />
+            </svg>
+            Instagram
+          </a>
+          <a
+            href="https://www.tiktok.com/@beattrice738"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="follow-btn tiktok"
+            aria-label="Follow Beatix on TikTok"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16.6 5.82c-1.01-.98-1.6-2.34-1.6-3.82h-3.2v14.36c0 1.6-1.3 2.9-2.9 2.9a2.9 2.9 0 0 1-2.9-2.9 2.9 2.9 0 0 1 2.9-2.9c.3 0 .58.05.85.13v-3.26a6.1 6.1 0 0 0-.85-.06A6.1 6.1 0 0 0 2.8 16.36 6.1 6.1 0 0 0 8.9 22.4a6.1 6.1 0 0 0 6.1-6.1V9.13a9.2 9.2 0 0 0 5.38 1.72V7.65a5.8 5.8 0 0 1-3.78-1.83z" />
+            </svg>
+            TikTok
+          </a>
+        </div>
       </div>
 
       {mode === 'main' && (
@@ -226,10 +268,27 @@ export default function OnboardingPage() {
           align-items: center; justify-content: center;
           padding: 24px; font-family: 'Inter', sans-serif;
         }
-        .logo-area { text-align: center; margin-bottom: 40px; }
+        .logo-area { text-align: center; margin-bottom: 20px; }
         .crown { font-size: 52px; margin-bottom: 8px; }
         .brand { font-size: 42px; font-weight: 900; color: #F5C842; letter-spacing: 6px; margin: 0; }
         .tagline { color: rgba(245,200,66,0.6); font-size: 14px; margin: 8px 0 0; }
+
+        .follow-us { text-align: center; margin-bottom: 28px; width: 100%; max-width: 400px; }
+        .follow-label { color: rgba(255,255,255,0.5); font-size: 13px; margin: 0 0 10px; }
+        .follow-links { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .follow-btn {
+          display: flex; align-items: center; gap: 6px;
+          padding: 8px 14px; border-radius: 10px;
+          border: 1px solid rgba(107,47,160,0.4);
+          background: rgba(107,47,160,0.15);
+          color: #fff; font-size: 13px; text-decoration: none;
+          transition: background 0.2s, transform 0.2s;
+        }
+        .follow-btn:hover { background: rgba(107,47,160,0.35); transform: translateY(-2px); }
+        .follow-btn.facebook:hover { background: rgba(24,119,242,0.3); border-color: rgba(24,119,242,0.6); }
+        .follow-btn.instagram:hover { background: rgba(225,48,108,0.3); border-color: rgba(225,48,108,0.6); }
+        .follow-btn.tiktok:hover { background: rgba(37,244,238,0.2); border-color: rgba(37,244,238,0.5); }
+
         .card {
           background: rgba(107,47,160,0.15); border: 1px solid rgba(107,47,160,0.4);
           border-radius: 20px; padding: 32px 28px; width: 100%; max-width: 400px;
@@ -279,5 +338,3 @@ export default function OnboardingPage() {
     </div>
   );
 }
-
-

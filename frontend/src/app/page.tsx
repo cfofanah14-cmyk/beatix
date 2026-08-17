@@ -1,20 +1,40 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useAuth } from './lib/AuthContext'
 
 const CATEGORIES = ['All', 'Music', 'Sports', 'Comedy', 'Culture', 'Food', 'Business']
 
 const SAMPLE_EVENTS = [
   { id: '1', title: 'Big Afrobeats Night', date: '20 Dec', venue: 'Aberdeen, Freetown', price: 'NLe 80', emoji: '🎤', gradient: 'linear-gradient(135deg,#A855D4,#6B2FA0)' },
-  { id: '2', title: 'Leone Stars vs Guinea', date: '28 Dec', venue: 'National Stadium', price: 'NLe 30', emoji: '🏆', gradient: 'linear-gradient(135deg,#D4A017,#F5C842)' },
+  { id: '2', title: 'Leone Stars vs Guinea', date: '28 Dec', venue: 'National Stadium', price: 'NLe 30', emoji: '⚽', gradient: 'linear-gradient(135deg,#D4A017,#F5C842)' },
   { id: '3', title: 'Krio Comedy Show', date: '3 Jan', venue: 'City Hall, Freetown', price: 'NLe 45', emoji: '😂', gradient: 'linear-gradient(135deg,#1A1845,#6B2FA0)' },
-  { id: '4', title: 'Freetown Food Festival', date: '10 Jan', venue: 'Cotton Tree Square', price: 'Free', emoji: '🍽️', gradient: 'linear-gradient(135deg,#6B2FA0,#1A1845)' },
+  { id: '4', title: 'Freetown Food Festival', date: '10 Jan', venue: 'Cotton Tree Square', price: 'Free', emoji: '🍲', gradient: 'linear-gradient(135deg,#6B2FA0,#1A1845)' },
 ]
 
 export default function HomePage() {
+  const { user, loading } = useAuth()
+  const router = useRouter()
   const [activeCategory, setActiveCategory] = useState('All')
   const [greeting] = useState(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; })
+
+  // Require sign-in before showing anything on this page
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/onboarding')
+    }
+  }, [user, loading, router])
+
+  if (loading || !user) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0D0B2B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 36, height: 36, border: '3px solid rgba(107,47,160,0.3)', borderTopColor: '#6B2FA0', borderRadius: '50%', animation: 'spin .8s linear infinite' }} />
+        <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
 
   return (
     <div style={{ background: '#0D0B2B', minHeight: '100vh', maxWidth: 430, margin: '0 auto', paddingBottom: 80, fontFamily: "'DM Sans', sans-serif", color: '#fff' }}>
@@ -22,12 +42,12 @@ export default function HomePage() {
       {/* Top Bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 12px', position: 'sticky', top: 0, background: '#0D0B2B', zIndex: 10 }}>
         <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, color: '#F5C842' }}>
-  BEA<span style={{ color: '#A855D4' }}>TIX</span>
-</div>
+          BEA<span style={{ color: '#A855D4' }}>TIX</span>
+        </div>
         <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#1A1845', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
           <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            <path d="M18 8A6 6 0 0 0 6 8c0 7.3-3 9-3 9h18s-3-1.7-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
         </div>
       </div>
@@ -44,9 +64,9 @@ export default function HomePage() {
       <div style={{ padding: '0 20px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#1A1845', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '12px 16px' }}>
           <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
-          <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)' }}>Search events, artists, venues…</span>
+          <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)' }}>Search events, artists, venues...</span>
         </div>
       </div>
 
@@ -74,10 +94,10 @@ export default function HomePage() {
               <span style={{ fontSize: 64 }}>🎵</span>
             </div>
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(to top,rgba(13,11,43,0.97) 0%,rgba(13,11,43,0.6) 60%,transparent 100%)', padding: 20 }}>
-              <div style={{ display: 'inline-block', background: '#F5C842', color: '#0D0B2B', fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 20, marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Tonight</div>
+              <div style={{ display: 'inline-block', background: '#F5C842', color: '#0D0B2B', fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 20, marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Freetown Vibes Fest 2025</div>
               <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 700, marginBottom: 6, color: '#fff' }}>Freetown Vibes Fest 2025</div>
               <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'rgba(255,255,255,0.6)', alignItems: 'center' }}>
-                <span>🗓 Sat, 14 Dec · 8 PM</span>
+                <span>📅 Sat, 14 Dec · 8 PM</span>
                 <span>📍 Lumley Beach</span>
                 <span style={{ marginLeft: 'auto', color: '#F5C842', fontWeight: 700, fontFamily: "'Syne', sans-serif", fontSize: 14 }}>From NLe 50</span>
               </div>
@@ -102,10 +122,10 @@ export default function HomePage() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 5 }}>{ev.title}</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 8, display: 'flex', gap: 10 }}>
-                  <span>🗓 {ev.date}</span>
+                  <span>📅 {ev.date}</span>
                   <span>📍 {ev.venue}</span>
                 </div>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 14, fontWeight: 700, color: '#F5C842' }}>{ev.price} <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: "'DM Sans', sans-serif", fontWeight: 400 }}>/ ticket</span></div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 14, fontWeight: 700, color: '#F5C842' }}>{ev.price} <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: "'DM Sans', sans-serif" }}>onwards</span></div>
               </div>
             </div>
           </Link>
@@ -115,7 +135,7 @@ export default function HomePage() {
       <div style={{ height: 24 }} />
 
       {/* Bottom Nav */}
-      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: 'rgba(13,11,43,0.96)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '10px 0 18px', zIndex: 100 }}>
+      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: 'rgba(13,11,43,0.96)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex' }}>
         {[
           { href: '/', label: 'Home', active: true },
           { href: '/explore', label: 'Explore', active: false },
