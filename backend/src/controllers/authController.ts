@@ -119,3 +119,4 @@ export async function getMe(req: AuthRequest, res: Response): Promise<void> {
     res.status(500).json({ error: 'Failed to fetch user' });
   }
 }
+
