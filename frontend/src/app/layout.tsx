@@ -1,6 +1,7 @@
 // This is a SERVER component - do NOT add 'use client' here.
 // All client-side providers are wrapped in their own 'use client' components below.
 
+import './globals.css';
 import type { Metadata } from 'next';
 import GoogleAuthWrapper from './components/auth/GoogleAuthWrapper';
 import { AuthProvider } from './lib/AuthContext';

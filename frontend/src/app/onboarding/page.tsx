@@ -24,7 +24,7 @@ export default function OnboardingPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!loading && user) {
-      router.replace('/home');
+      router.replace('/');
     }
   }, [user, loading, router]);
 
@@ -78,7 +78,7 @@ export default function OnboardingPage() {
       }
 
       saveSession(data.token, data.user);
-      router.replace('/home');
+      router.replace('/');
 
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -127,7 +127,7 @@ export default function OnboardingPage() {
       }
 
       saveSession(data.token, data.user);
-      router.replace('/home');
+      router.replace('/');
     } catch {
       setError('Network error. Please check your connection and try again.');
     } finally {

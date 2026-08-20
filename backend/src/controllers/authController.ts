@@ -51,7 +51,7 @@ export async function googleSignIn(req: Request, res: Response): Promise<void> {
       await query('UPDATE users SET google_id=$1, updated_at=NOW() WHERE id=$2', [googleId, user.id]);
     }
 
-    res.json({ token: signToken(user.id, user.email, user.role), user: toPublic(user) });
+    res.json({ success: true, token: signToken(user.id, user.email, user.role), user: toPublic(user) });
   } catch (err) {
     console.error('[googleSignIn]', err);
     res.status(500).json({ error: 'Google sign-in failed' });
@@ -77,7 +77,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       [full_name ?? null, email, phone ?? null, hash]
     );
     const user = result.rows[0];
-    res.status(201).json({ token: signToken(user.id, user.email, user.role), user: toPublic(user) });
+    res.status(201).json({ success: true, token: signToken(user.id, user.email, user.role), user: toPublic(user) });
   } catch (err) {
     console.error('[register]', err);
     res.status(500).json({ error: 'Registration failed' });
@@ -100,7 +100,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) { res.status(401).json({ error: 'Invalid credentials' }); return; }
 
-    res.json({ token: signToken(user.id, user.email, user.role), user: toPublic(user) });
+    res.json({ success: true, token: signToken(user.id, user.email, user.role), user: toPublic(user) });
   } catch (err) {
     console.error('[login]', err);
     res.status(500).json({ error: 'Login failed' });
