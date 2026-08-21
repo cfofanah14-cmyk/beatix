@@ -78,7 +78,7 @@ export async function setUserRole(req: AuthRequest, res: Response): Promise<void
       [role, id]
     );
     if (!r.rows[0]) { res.status(404).json({ error: 'User not found' }); return; }
-    res.json({ user: r.rows[0] });
+    res.json({ success: true, user: r.rows[0] });
   } catch (err) {
     console.error('[setUserRole]', err);
     res.status(500).json({ error: 'Failed to update role' });
@@ -93,7 +93,7 @@ export async function listAllEvents(_req: AuthRequest, res: Response): Promise<v
        FROM events e LEFT JOIN users u ON u.id=e.organizer_id LEFT JOIN tickets t ON t.event_id=e.id
        GROUP BY e.id, u.full_name ORDER BY e.created_at DESC`
     );
-    res.json({ events: r.rows });
+    res.json({ success: true, events: r.rows });
   } catch (err) {
     console.error('[listAllEvents]', err);
     res.status(500).json({ error: 'Failed to fetch events' });

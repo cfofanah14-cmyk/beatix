@@ -10,7 +10,7 @@ export async function getProfile(req: AuthRequest, res: Response): Promise<void>
       [req.user!.userId]
     );
     if (!r.rows[0]) { res.status(404).json({ error: 'User not found' }); return; }
-    res.json({ user: r.rows[0] });
+    res.json({ success: true, user: r.rows[0] });
   } catch (err) {
     console.error('[getProfile]', err);
     res.status(500).json({ error: 'Failed to fetch profile' });
@@ -25,7 +25,7 @@ export async function updateProfile(req: AuthRequest, res: Response): Promise<vo
        WHERE id=$3 RETURNING id,full_name,email,phone,avatar_url,role`,
       [full_name ?? null, phone ?? null, req.user!.userId]
     );
-    res.json({ user: r.rows[0] });
+    res.json({ success: true, user: r.rows[0] });
   } catch (err) {
     console.error('[updateProfile]', err);
     res.status(500).json({ error: 'Failed to update profile' });
@@ -69,7 +69,7 @@ export async function getMyTickets(req: AuthRequest, res: Response): Promise<voi
        ORDER BY t.purchased_at DESC`,
       [req.user!.userId]
     );
-    res.json({ tickets: r.rows });
+    res.json({ success: true, tickets: r.rows });
   } catch (err) {
     console.error('[getMyTickets]', err);
     res.status(500).json({ error: 'Failed to fetch tickets' });
