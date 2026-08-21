@@ -53,7 +53,7 @@ export default function ProfilePage() {
 
   const loadProfile = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/profile`, { headers: authHeaders() });
+      const res = await fetch(`${API}/api/users/profile`, { headers: authHeaders() });
       const data = await res.json();
       if (data.success) {
         setProfile(data.user);
@@ -68,7 +68,7 @@ export default function ProfilePage() {
 
   const loadTickets = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/profile/tickets`, { headers: authHeaders() });
+      const res = await fetch(`${API}/api/users/tickets`, { headers: authHeaders() });
       const data = await res.json();
       if (data.success) setTickets(data.tickets);
     } catch (err) {
@@ -85,7 +85,7 @@ export default function ProfilePage() {
     setSaving(true);
     setMessage('');
     try {
-      const res = await fetch(`${API}/api/profile`, {
+      const res = await fetch(`${API}/api/users/profile`, {
         method: 'PUT',
         headers: authHeaders(),
         body: JSON.stringify(form),
