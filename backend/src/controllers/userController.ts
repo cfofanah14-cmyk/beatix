@@ -60,8 +60,8 @@ export async function getMyTickets(req: AuthRequest, res: Response): Promise<voi
       sales_end_date: Date | null; category_name: string;
     }>(
       `SELECT t.id, t.qr_code_data AS qr_code, t.status, t.created_at AS purchased_at,
-              e.title AS event_title, e.event_date, e.location AS event_location,
-              e.sales_end_date, tc.name AS category_name
+              e.title AS event_title, e.starts_at AS event_date, e.venue_name AS event_location,
+              e.sales_end_at AS sales_end_date, tc.name AS category_name
        FROM tickets t
        JOIN events e ON e.id=t.event_id
        JOIN ticket_types tc ON tc.id=t.ticket_type_id
