@@ -5,12 +5,21 @@ import './globals.css';
 import type { Metadata } from 'next';
 import GoogleAuthWrapper from './components/auth/GoogleAuthWrapper';
 import { AuthProvider } from './lib/AuthContext';
-
+import ServiceWorkerRegistration from '../components/ServiceWorkerRegistration';
 export const metadata: Metadata = {
   title: 'Beatix — Access Every Event, Effortlessly',
   description: 'Online event ticketing for Sierra Leone and West Africa',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Beatix',
+  },
 };
 
+export const viewport = {
+  themeColor: '#0D0B2B',
+};
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -22,9 +31,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           this is the correct Next.js App Router pattern.
         */}
         
-          <GoogleAuthWrapper><AuthProvider>
-            {children}
-          </AuthProvider></GoogleAuthWrapper>
+         <GoogleAuthWrapper><AuthProvider>
+              {children}
+              <ServiceWorkerRegistration />
+            </AuthProvider></GoogleAuthWrapper> 
         
       </body>
     </html>
