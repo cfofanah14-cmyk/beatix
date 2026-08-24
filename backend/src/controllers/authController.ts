@@ -64,7 +64,7 @@ export async function register(req: Request, res: Response): Promise<void> {
   const { full_name, email, phone, password } = req.body as {
     full_name?: string; email?: string; phone?: string; password?: string;
   };
-  if (!email || !password) { res.status(400).json({ error: 'email and password are required' }); return; }
+  if (!password || (!email && !phone)) { res.status(400).json({ error: 'phone or email and password are required' }); return; }
 
   try {
     const exists = await query('SELECT id FROM users WHERE email=$1', [email]);
