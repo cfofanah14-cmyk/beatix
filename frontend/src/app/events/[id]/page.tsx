@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import BottomNav from '../../../components/BottomNav'
 
 interface TicketCategory {
   id: string
@@ -58,7 +59,7 @@ export default function EventDetailPage() {
       {/* Hero */}
       <div style={{ height: 280, position: 'relative', background: 'linear-gradient(135deg,#6B2FA0 0%,#2D1B4E 50%,#1A1845 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Link href="/" style={{ position: 'absolute', top: 20, left: 20, width: 38, height: 38, borderRadius: '50%', background: 'rgba(13,11,43,0.65)', border: '1px solid rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', color: '#fff', fontSize: 18 }}>←</Link>
-        <div style={{ position: 'absolute', top: 20, right: 20, width: 38, height: 38, borderRadius: '50%', background: 'rgba(13,11,43,0.65)', border: '1px solid rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, cursor: 'pointer' }}>↑</div>
+        <div style={{ position: 'absolute', top: 20, right: 20, width: 38, height: 38, borderRadius: '50%', background: 'rgba(13,11,43,0.65)', border: '1px solidrgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, cursor: 'pointer' }}>↑</div>
         <span style={{ fontSize: 64 }}>🎵</span>
       </div>
 
@@ -158,20 +159,7 @@ export default function EventDetailPage() {
 
       </div>
 
-      {/* Bottom Nav */}
-      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: 'rgba(13,11,43,0.96)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '10px 0 18px', zIndex: 100 }}>
-        {[
-          { href: '/',           label: 'Home',       icon: '🏠' },
-          { href: '/explore',    label: 'Explore',    icon: '🔍' },
-          { href: '/my-tickets', label: 'My Tickets', icon: '🎟️' },
-          { href: '/profile',    label: 'Profile',    icon: '👤' },
-        ].map(item => (
-          <Link key={item.href} href={item.href} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none', padding: '4px 16px' }}>
-            <span style={{ fontSize: 20 }}>{item.icon}</span>
-            <span style={{ fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,0.35)' }}>{item.label}</span>
-          </Link>
-        ))}
-      </nav>
+      <BottomNav />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { Request } from 'express';
 
-// ─── Auth ─────────────────────────────────────────────────────────────────────
+// ─── Auth ─────────────────────────────────────────────────────────────────
 
 export interface AuthRequest extends Request {
   user?: TokenUser;
@@ -20,7 +20,7 @@ export interface JwtPayload {
   exp?: number;
 }
 
-// ─── DB row shapes ────────────────────────────────────────────────────────────
+// ─── DB row shapes ────────────────────────────────────────────────────────
 
 export interface UserRow {
   id: number;
@@ -90,7 +90,37 @@ export interface FeeSettingRow {
   updated_at: Date;
 }
 
-// ─── API shapes ───────────────────────────────────────────────────────────────
+export interface OrganizerRow {
+  id: string;
+  user_id: string;
+  org_name: string | null;
+  description: string | null;
+  logo_url: string | null;
+  website: string | null;
+  social_links: Record<string, string> | null;
+  status: 'pending' | 'approved' | 'suspended';
+  verified_at: Date | null;
+  verified_by: string | null;
+  bank_name: string | null;
+  bank_account: string | null;
+  mobile_money_number: string | null;
+  total_earnings: string; // pg NUMERIC -> string
+  total_payouts: string;  // pg NUMERIC -> string
+  fee_type: string;
+  custom_fee_percentage: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface StaffRow {
+  id: string;
+  organizer_id: string;
+  user_id: string;
+  role: string;
+  added_at: Date;
+}
+
+// ─── API shapes ───────────────────────────────────────────────────────────
 
 export interface PublicUser {
   id: number;
@@ -108,7 +138,7 @@ export interface FeeBreakdown {
   currency: string;
 }
 
-// ─── Flutterwave ──────────────────────────────────────────────────────────────
+// ─── Flutterwave ──────────────────────────────────────────────────────────
 
 export interface FlwPaymentPayload {
   tx_ref: string;

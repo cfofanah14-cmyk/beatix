@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from './lib/AuthContext'
+import BottomNav from '../components/BottomNav'
 
 const CATEGORIES = ['All', 'Music', 'Sports', 'Comedy', 'Culture', 'Food', 'Business']
 
@@ -134,20 +135,7 @@ export default function HomePage() {
 
       <div style={{ height: 24 }} />
 
-      {/* Bottom Nav */}
-      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: 'rgba(13,11,43,0.96)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex' }}>
-        {[
-          { href: '/', label: 'Home', active: true },
-          { href: '/explore', label: 'Explore', active: false },
-          { href: '/my-tickets', label: 'My Tickets', active: false },
-          { href: '/profile', label: 'Profile', active: false },
-        ].map(item => (
-          <Link key={item.href} href={item.href} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none', padding: '4px 16px' }}>
-            <span style={{ fontSize: 20 }}>{item.label === 'Home' ? '🏠' : item.label === 'Explore' ? '🔍' : item.label === 'My Tickets' ? '🎟️' : '👤'}</span>
-            <span style={{ fontSize: 10, fontWeight: 500, color: item.active ? '#F5C842' : 'rgba(255,255,255,0.35)' }}>{item.label}</span>
-          </Link>
-        ))}
-      </nav>
+      <BottomNav />
     </div>
   )
 }

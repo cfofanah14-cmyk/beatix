@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import BottomNav from '../../../components/BottomNav'
 
 const S = {
   page:       { background: '#0D0B2B', minHeight: '100vh', maxWidth: 430, margin: '0 auto', paddingBottom: 90, fontFamily: "'DM Sans', sans-serif", color: '#fff' },
@@ -198,20 +199,7 @@ export default function OrganizerDashboard() {
 
       <div style={{ height: 20 }} />
 
-      {/* Bottom Nav */}
-      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: 'rgba(13,11,43,0.96)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '10px 0 18px', zIndex: 100 }}>
-        {[
-          { href: '/organizer/dashboard', label: 'Dashboard', icon: '📊', active: true },
-          { href: '/organizer/create-event', label: 'Create', icon: '➕', active: false },
-          { href: '/organizer/team', label: 'Team', icon: '👥', active: false },
-          { href: '/profile', label: 'Profile', icon: '👤', active: false },
-        ].map(item => (
-          <Link key={item.href} href={item.href} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none', padding: '4px 14px' }}>
-            <span style={{ fontSize: 20 }}>{item.icon}</span>
-            <span style={{ fontSize: 10, fontWeight: 500, color: item.active ? '#F5C842' : 'rgba(255,255,255,0.35)' }}>{item.label}</span>
-          </Link>
-        ))}
-      </nav>
+      <BottomNav />
     </div>
   )
 }

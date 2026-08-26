@@ -122,7 +122,7 @@ export default function OnboardingPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setError(data.message || 'Authentication failed');
+        setError(data.error || data.message || 'Authentication failed');
         return;
       }
 
