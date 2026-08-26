@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../lib/AuthContext';
+import BottomNav from '../../components/BottomNav';
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -35,7 +36,7 @@ interface FormState {
 }
 
 export default function ProfilePage() {
-  const { logout, getToken } = useAuth();
+  const { logout, getToken, isApprovedOrganizer, activeView, switchToOrganizer, switchToBuyer } = useAuth();
   const router = useRouter();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -104,6 +105,16 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSwitchToOrganizer = () => {
+    switchToOrganizer();
+    router.push('/organizer/dashboard');
+  };
+
+  const handleSwitchToBuyer = () => {
+    switchToBuyer();
+    router.push('/');
+  };
+
   if (loading) {
     return (
       <div className="loading-screen">
@@ -130,6 +141,26 @@ export default function ProfilePage() {
         </div>
         <h1 className="profile-name">{profile?.name}</h1>
         <p className="profile-role">{profile?.role === 'admin' ? '⭐ Admin' : 'Member'}</p>
+
+        {/* Buyer / Organizer switch — only shown to approved organizers */}
+        {isApprovedOrganizer && (
+          <div className="view-switch">
+            <button
+              type="button"
+              className={activeView === 'buyer' ? 'switch-btn active' : 'switch-btn'}
+              onClick={handleSwitchToBuyer}
+            >
+              🎟️ Buyer
+            </button>
+            <button
+              type="button"
+              className={activeView === 'organizer' ? 'switch-btn active' : 'switch-btn'}
+              onClick={handleSwitchToOrganizer}
+            >
+              📊 Organizer
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Info Card */}
@@ -148,9 +179,7 @@ export default function ProfilePage() {
             )
           }
         </div>
-
         {message && <p className="msg">{message}</p>}
-
         <div className="info-fields">
           {[
             { label: 'Name', key: 'name', type: 'text', placeholder: 'Full name' },
@@ -214,13 +243,18 @@ export default function ProfilePage() {
       {/* Logout */}
       <button type="button" className="logout-btn" onClick={logout}>Sign Out</button>
 
+      <BottomNav />
+
       <style jsx>{`
-        .profile-page { min-height:100vh; background:#0D0B2B; padding:24px 20px 80px; font-family:'Inter',sans-serif; }
+        .profile-page { min-height:100vh; background:#0D0B2B; padding:24px 20px 100px; font-family:'Inter',sans-serif; }
         .profile-header { text-align:center; padding:32px 0 24px; }
         .avatar-circle { width:88px; height:88px; border-radius:50%; background:linear-gradient(135deg,#6B2FA0,#F5C842); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:36px; font-weight:800; color:#0D0B2B; overflow:hidden; }
         .avatar-img { width:100%; height:100%; object-fit:cover; }
         .profile-name { color:#fff; font-size:24px; font-weight:700; margin:0 0 4px; }
         .profile-role { color:#F5C842; font-size:14px; margin:0; }
+        .view-switch { display:flex; gap:8px; justify-content:center; margin-top:16px; }
+        .switch-btn { padding:8px 18px; border-radius:40px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid rgba(255,255,255,0.12); background:#1A1845; color:rgba(255,255,255,0.6); transition:all 0.15s; }
+        .switch-btn.active { background:#F5C842; color:#0D0B2B; border-color:#F5C842; }
         .info-card { background:rgba(107,47,160,0.12); border:1px solid rgba(107,47,160,0.35); border-radius:20px; padding:20px; margin-bottom:20px; }
         .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
         .card-header h2 { color:#fff; font-size:17px; margin:0; }
